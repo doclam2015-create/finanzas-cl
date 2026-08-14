@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Finanzas CL">
+<meta name="theme-color" content="#000000">
+<title>Finanzas Pro CL</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%230a84ff'/%3E%3Cstop offset='1' stop-color='%23bf5af2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' fill='%23000'/%3E%3Ccircle cx='90' cy='90' r='66' fill='url(%23g)'/%3E%3Cpath d='M56 74h58l-15-15M124 106H66l15 15' stroke='%23fff' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#000;--card:#1c1c1e;--card2:#2c2c2e;--line:#38383a;--txt:#fff;--dim:#8e8e93;
+  --blue:#0a84ff;--green:#30d158;--red:#ff453a;--orange:#ff9f0a;--purple:#bf5af2;
+}
+:root[data-t="claro"]{
+  --bg:#f2f2f7;--card:#fff;--card2:#ececef;--line:#d8d8dc;--txt:#000;--dim:#6c6c70;
+  --blue:#007aff;--green:#1e9e4a;--red:#d70015;--orange:#c76a00;--purple:#8a2be2;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;touch-action:manipulation;background:var(--bg)}
+html,body{margin:0;background:var(--bg);color:var(--txt);overscroll-behavior-y:contain}
+body{font:16px/1.4 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  padding:22px 16px calc(30px + env(safe-area-inset-bottom));max-width:820px;margin:0 auto}
+button{font-family:inherit;color:inherit}
+button:active{opacity:.55}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:18px}
+h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
+#st{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--blue);margin-top:3px}
+.ic{width:42px;height:42px;flex:none;border-radius:50%;border:0;background:var(--card);color:var(--blue);font-size:19px;line-height:1}
+#rf.spin{animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.c{background:var(--card);border-radius:16px;padding:13px 14px;border:0;text-align:left;width:100%;display:block}
+.c.on{box-shadow:inset 0 0 0 2px var(--blue)}
+.c b{display:block;font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--dim);text-transform:uppercase;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c s{display:block;text-decoration:none;font-size:21px;font-weight:700;font-variant-numeric:tabular-nums}
+.c i{font-style:normal;font-size:11px;font-weight:700}
+.panel{background:var(--card);border-radius:20px;padding:16px;margin-bottom:14px}
+.ttl{font-size:12px;font-weight:700;letter-spacing:1.2px;color:var(--dim);text-transform:uppercase;margin:0 0 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ttl button{background:none;border:0;color:var(--blue);font-size:12px;font-weight:700;letter-spacing:.5px;padding:0}
+.ttl span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hname{color:var(--dim);max-width:45%;flex:none}
+.base{background:var(--card2);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.base select{background:none;border:0;color:var(--txt);font-size:15px;font-weight:700;padding:4px;max-width:44%;-webkit-appearance:none;outline:none}
+.base input{flex:1;min-width:0;background:none;border:0;color:var(--txt);font-size:28px;font-weight:700;text-align:right;
+  font-variant-numeric:tabular-nums;outline:none;-webkit-appearance:none}
+.r{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line)}
+.r .fl{font-size:21px;width:25px;text-align:center;flex:none}
+.r .id{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden}
+.r .cd{font-size:14px;font-weight:700;flex:none}
+.r .nm{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r .vl{width:42%;background:none;border:0;color:var(--txt);font-size:19px;font-weight:600;
+  font-variant-numeric:tabular-nums;text-align:right;outline:none;-webkit-appearance:none;padding:2px 0}
+.r .vl:focus{color:var(--blue)}
+.r .mv{border:0;background:none;color:var(--line);font-size:15px;padding:0 1px;flex:none}
+.edit .mv{color:var(--blue)}
+.add{display:flex;gap:8px;margin-top:12px}
+.add{width:100%}
+.add select,.sel{flex:1;min-width:0;width:100%;text-overflow:ellipsis;background:var(--card2);border:0;color:var(--txt);font-size:15px;padding:11px;border-radius:12px;-webkit-appearance:none;outline:none}
+.chips{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--card2);border:0;color:var(--dim);font-size:12px;font-weight:700;padding:7px 12px;border-radius:20px}
+.chip.on{background:var(--blue);color:#fff}
+#chart{width:100%;height:190px;display:block;touch-action:none}
+.hd{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:8px}
+.hd .big{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.hd .sub{font-size:12px;color:var(--dim)}
+.hd .dt{font-size:12px;color:var(--dim);text-align:right}
+.up{color:var(--green)}.dn{color:var(--red)}
+.cfg{display:none}
+.cfg.open{display:block}
+.cfgrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.cfgrow select{background:var(--card2);border:0;color:var(--txt);font-size:14px;padding:8px 10px;border-radius:10px;-webkit-appearance:none;outline:none;max-width:60%}
+.banner{display:flex;gap:14px;align-items:center;background:var(--blue);color:#fff;border-radius:20px;padding:16px}
+.banner div{font-size:13px;opacity:.92}
+.banner strong{display:block;font-size:16px;opacity:1;margin-bottom:2px}
+.mini{font-size:11px;color:var(--dim);margin-top:10px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Finanzas Pro CL</h1><div id="st">valores base</div></div>
+  <button class="ic" id="cfgb" title="Ajustes">⚙</button>
+  <button class="ic" id="rf" title="Actualizar">⟳</button>
+</header>
+
+<div class="panel cfg" id="cfg">
+  <p class="ttl">Ajustes</p>
+  <div class="cfgrow"><span>Tema</span>
+    <select id="theme"><option value="oscuro">Oscuro</option><option value="claro">Claro</option><option value="auto">Automático</option></select></div>
+  <div class="cfgrow"><span>Decimales</span>
+    <select id="dec"><option value="auto">Automático</option><option value="0">0</option><option value="2">2</option><option value="4">4</option><option value="6">6</option></select></div>
+  <div class="cfgrow"><span>Tarjetas superiores</span>
+    <select id="ncards"><option value="2">2</option><option value="4">4</option><option value="6">6</option><option value="8">8</option></select></div>
+  <div class="cfgrow"><span>Reordenar monedas</span>
+    <select id="editm"><option value="0">Off</option><option value="1">On</option></select></div>
+  <div class="cfgrow"><span>Restablecer todo</span><button class="chip" onclick="reset()">Borrar ajustes</button></div>
+</div>
+
+<div class="cards" id="cards"></div>
+
+<div class="panel">
+  <p class="ttl"><span>📈 Histórico</span><span id="hname"></span></p>
+  <div class="chips" id="hsel"></div>
+  <div class="hd">
+    <div><div class="big" id="hval">—</div><div class="sub" id="hchg"></div></div>
+    <div class="dt" id="hdate"></div>
+  </div>
+  <svg id="chart" viewBox="0 0 340 190" preserveAspectRatio="none"></svg>
+  <div class="chips" style="margin:10px 0 0" id="hrange"></div>
+</div>
+
+<div class="panel">
+  <p class="ttl"><span>⇄ Calculadora multidivisa</span><button onclick="swap()">Invertir</button></p>
+  <div class="base">
+    <select id="base"></select>
+    <input id="amt" inputmode="decimal" enterkeyhint="done" placeholder="0">
+  </div>
+  <div id="list"></div>
+  <div class="add"><select id="pick"><option value="">+ Agregar moneda…</option></select></div>
+  <div class="mini">Escribe en cualquier fila: la conversión va en los dos sentidos.</div>
+</div>
+
+<div class="banner">
+  <div style="font-size:26px">⊕</div>
+  <div><strong>Acceso Directo</strong>Toca Compartir y luego "Agregar al inicio" para usarla como App.</div>
+</div>
+
+<script>
+'use strict';
+/* ---------- datos base ---------- */
+// R[c] = cuántos CLP vale 1 unidad de c. Snapshot embebido: la app abre y convierte sin red.
+const SNAP={"USD":913.2,"AED":248.65895,"AFN":13.988869,"ALL":11.327249,"AMD":2.4951867,"ANG":510.1676,"AOA":0.98662645,"ARS":0.61213052,"AUD":644.57385,"AWG":510.1676,"AZN":537.18911,"BAM":538.44371,"BBD":456.6,"BDT":7.4312143,"BGN":538.44371,"BHD":2428.7234,"BIF":0.30526843,"BMD":913.2,"BND":713.24359,"BOB":77.529555,"BRL":176.18239,"BSD":913.2,"BTN":9.5649889,"BWP":66.509894,"BYN":304.75138,"BZD":456.6,"CAD":655.39698,"CDF":0.39888342,"CHF":1122.5403,"CLF":39474.367,"CLP":1,"CNH":135.41397,"CNY":135.14795,"COP":0.29080531,"CRC":2.0193526,"CUP":38.05,"CVE":9.5506692,"CZK":43.470613,"DJF":5.1383911,"DKK":140.87758,"DOP":15.627289,"DZD":6.8694783,"EGP":18.165916,"ERN":60.88,"ETB":5.6612003,"EUR":1053.1123,"FJD":412.15264,"FKP":1231.9531,"FOK":140.8864,"GBP":1231.9614,"GEL":349.24811,"GGP":1231.9531,"GHS":81.162497,"GIP":1231.9531,"GMD":12.225612,"GNF":0.10399895,"GTQ":119.6672,"GYD":4.3654312,"HKD":116.36734,"HNL":34.039523,"HRK":139.77098,"HTG":6.9848017,"HUF":2.899818,"IDR":0.05108432,"ILS":307.20592,"IMP":1231.9531,"INR":9.5645916,"IQD":0.69618075,"IRR":0.00067513135,"ISK":7.4086232,"JEP":1231.9531,"JMD":5.7764542,"JOD":1288.0113,"JPY":5.7292151,"KES":7.0654199,"KGS":10.43755,"KHR":0.22573152,"KID":644.53563,"KMF":2.1405967,"KRW":0.64381822,"KWD":2960.1201,"KYD":1095.8404,"KZT":1.9635637,"LAK":0.04075919,"LBP":0.010203352,"LKR":2.7382083,"LRD":5.0236976,"LSL":56.437573,"LYD":143.27063,"MAD":98.179582,"MDL":52.746199,"MGA":0.21176436,"MKD":17.120026,"MMK":0.43460617,"MNT":0.25185789,"MOP":112.97998,"MRU":22.712479,"MUR":19.385853,"MVR":59.104111,"MWK":0.52424614,"MXN":53.587961,"MYR":223.43673,"MZN":14.34997,"NAD":56.437573,"NGN":0.67119358,"NIO":24.806436,"NOK":96.037264,"NPR":5.978118,"NZD":534.23472,"OMR":2375.051,"PAB":913.2,"PEN":270.746,"PGK":206.52559,"PHP":14.882398,"PKR":3.2869872,"PLN":244.45571,"PYG":0.15258478,"QAR":250.87912,"RON":200.82993,"RSD":8.9773259,"RUB":10.966186,"RWF":0.61932348,"SAR":243.52,"SBD":115.17467,"SCR":63.505093,"SDG":1.7846931,"SEK":95.506319,"SGD":713.24971,"SHP":1231.9531,"SLE":37.04817,"SLL":0.03704817,"SOS":1.5985919,"SRD":24.08588,"SSP":0.16759193,"STN":42.983859,"SYP":7.4990039,"SZL":56.437573,"THB":27.543385,"TJS":98.913768,"TMT":260.99258,"TND":311.39529,"TOP":383.34345,"TRY":19.099919,"TTD":135.20328,"TVD":644.53563,"TWD":28.428218,"TZS":0.34507891,"UAH":20.426448,"UGX":0.24793535,"UYU":22.745981,"UZS":0.076668152,"VES":1.1843261,"VND":0.035077671,"VUV":7.7171831,"WST":338.59493,"XAF":1.6054475,"XCD":338.22222,"XCG":510.1676,"XDR":1246.1688,"XOF":1.6054475,"XPF":8.824997,"YER":3.8502115,"ZAR":56.442216,"ZMW":48.655479,"ZWG":34.344901,"ZWL":34.344901,"UF":40851.38,"UTM":71649,"BTC":57372524,"ETH":1714530,"USDT":912.3,"BNB":552410,"SOL":68924,"XRP":915.09,"ADA":164.49,"DOGE":63.4};
+
+// Histórico embebido (diario últimos 60 días, semanal antes; [días desde epoch, valor]).
+// Permite ver los gráficos sin red; si hay red se reemplaza por datos frescos.
+const HIST={"dolar":[[20090,996.46],[20097,1007.51],[20104,1001.93],[20111,995.22],[20118,990.94],[20125,969.47],[20132,956.63],[20139,951.78],[20146,941.76],[20153,936.7],[20160,932.28],[20167,917.76],[20174,920.98],[20181,949.83],[20188,1000.01],[20195,969.23],[20202,938.02],[20210,955.67],[20217,941.22],[20224,940.25],[20231,944.84],[20238,937.37],[20245,930.79],[20252,930.25],[20262,947.03],[20269,935.74],[20276,932.34],[20283,955.73],[20290,961.55],[20297,957.82],[20304,967.48],[20311,965.64],[20318,961.84],[20325,964.15],[20332,965.28],[20340,967.07],[20347,951.14],[20354,954.72],[20361,961.24],[20368,963.09],[20375,957.66],[20382,953.21],[20389,938.19],[20396,940.53],[20403,940.85],[20410,919.82],[20417,939.57],[20424,927.95],[20431,920.02],[20438,912.03],[20445,908.4],[20452,911.18],[20459,905.14],[20466,885.71],[20473,888.66],[20480,862.98],[20487,868.52],[20494,854.25],[20501,862.91],[20508,867.29],[20515,884.21],[20522,916.36],[20529,909.11],[20536,915.15],[20543,931.57],[20550,914.47],[20557,899.39],[20564,881.22],[20571,894.18],[20578,910.01],[20585,894.25],[20592,901.59],[20599,893.25],[20606,892.91],[20613,918.91],[20620,890.13],[20621,886.53],[20622,883.46],[20623,897.19],[20626,900.6],[20627,905.78],[20628,915.58],[20629,921.42],[20630,916.97],[20634,922.34],[20635,922.21],[20636,927.35],[20637,921.7],[20640,921.74],[20641,926.25],[20642,927.36],[20643,935.71],[20644,928.99],[20647,924.94],[20648,928.84],[20649,924.78],[20651,924.5],[20654,933.92],[20655,933],[20656,932.84],[20657,936.39],[20658,946.24],[20661,946.14],[20662,941.93],[20663,936.16],[20664,935.57],[20665,924.78],[20668,928.42],[20669,924.89],[20670,914.46],[20671,911.58],[20672,913.86],[20675,911.77],[20676,916.3],[20677,914.41],[20678,912],[20679,913.2]],"uf":[[20089,38419.2],[20096,38436.5],[20103,38424.1],[20110,38406.7],[20117,38389.4],[20124,38372],[20131,38407.1],[20138,38512.3],[20145,38617.8],[20152,38723.5],[20159,38799.1],[20166,38834.1],[20173,38869.1],[20180,38904.1],[20187,38939.2],[20194,38984.6],[20201,39030],[20208,39075.4],[20215,39120.9],[20222,39146.5],[20229,39164.2],[20236,39181.9],[20243,39199.6],[20250,39217.4],[20257,39235.7],[20264,39254],[20271,39272.3],[20278,39290.6],[20285,39255.1],[20292,39219.6],[20299,39184.1],[20306,39148.6],[20313,39178.7],[20320,39258.1],[20327,39337.6],[20334,39417.2],[20342,39485.7],[20349,39485.7],[20356,39485.7],[20363,39485.7],[20370,39485.7],[20377,39521.3],[20384,39556.9],[20391,39592.6],[20398,39628.3],[20405,39643.6],[20412,39643.6],[20419,39643.6],[20426,39643.6],[20433,39651.3],[20440,39678.1],[20447,39704.9],[20454,39731.8],[20461,39758.7],[20468,39747.1],[20475,39729.2],[20482,39711.2],[20489,39693.3],[20496,39700],[20503,39739.6],[20510,39779.3],[20517,39819],[20524,39841.7],[20531,39841.7],[20538,39841.7],[20545,39841.7],[20552,39841.7],[20559,39934.3],[20566,40027.2],[20573,40120.2],[20580,40213.4],[20587,40324.1],[20594,40441.8],[20601,40560],[20608,40678.4],[20615,40768.7],[20620,40782.3],[20621,40785],[20622,40787.7],[20623,40790.4],[20624,40793.1],[20625,40795.8],[20626,40798.6],[20627,40801.3],[20628,40804],[20629,40806.7],[20630,40809.4],[20631,40812.2],[20632,40814.9],[20633,40817.6],[20634,40820.3],[20635,40823],[20636,40825.8],[20637,40828.5],[20638,40831.2],[20639,40833.9],[20640,40836.6],[20641,40839.3],[20642,40842.1],[20643,40844.8],[20644,40844.8],[20645,40844.8],[20646,40844.8],[20647,40844.8],[20648,40844.8],[20649,40844.8],[20650,40844.8],[20651,40844.8],[20652,40844.8],[20653,40844.8],[20654,40844.8],[20655,40844.8],[20656,40844.8],[20657,40844.8],[20658,40844.8],[20659,40844.8],[20660,40844.8],[20661,40844.8],[20662,40844.8],[20663,40844.8],[20664,40844.8],[20665,40844.8],[20666,40844.8],[20667,40844.8],[20668,40844.8],[20669,40844.8],[20670,40844.8],[20671,40844.8],[20672,40844.8],[20673,40844.8],[20674,40844.8],[20675,40846.1],[20676,40847.4],[20677,40848.7],[20678,40850.1],[20679,40851.4],[20680,40852.7],[20681,40854],[20682,40855.3],[20683,40856.6],[20684,40858],[20685,40859.3],[20686,40860.6],[20687,40861.9],[20688,40863.2],[20689,40864.6],[20690,40865.9],[20691,40867.2],[20692,40868.5],[20693,40869.8],[20694,40871.1],[20695,40872.4],[20696,40873.8],[20697,40875.1],[20698,40876.4],[20699,40877.7],[20700,40879],[20701,40880.4],[20702,40881.7],[20703,40883],[20704,40884.3],[20705,40885.6]],"euro":[[20090,1035.28],[20097,1038.03],[20104,1030.69],[20111,1036.47],[20118,1032.66],[20125,1009.97],[20132,996.28],[20139,990.72],[20146,989.45],[20153,1010.14],[20160,1017],[20167,997.67],[20174,991.15],[20181,1030.97],[20188,1094.7],[20195,1102.65],[20202,1061.95],[20210,1084.51],[20217,1056.48],[20224,1050.79],[20231,1065.33],[20238,1066.65],[20245,1064.73],[20252,1076.8],[20262,1087.54],[20269,1094.3],[20276,1097.9],[20283,1117.29],[20290,1117.56],[20297,1124.6],[20304,1116.02],[20311,1125.59],[20318,1119.33],[20325,1130.84],[20332,1128.98],[20340,1135.46],[20347,1119.12],[20354,1125.72],[20361,1127.03],[20368,1128],[20375,1108.4],[20382,1110.19],[20389,1091.81],[20396,1084.68],[20403,1086.81],[20410,1066.46],[20417,1081.96],[20424,1078.64],[20431,1070.66],[20438,1071.46],[20445,1068.08],[20452,1070.72],[20459,1060.38],[20466,1033.62],[20473,1034.65],[20480,1025.04],[20487,1025.17],[20494,1016.96],[20501,1022.41],[20508,1023.23],[20515,1034.53],[20522,1061.34],[20529,1045.19],[20536,1061.54],[20543,1067.58],[20550,1055.97],[20557,1056.61],[20564,1038.44],[20571,1048.15],[20578,1064.09],[20585,1053.17],[20592,1049.58],[20599,1039.99],[20606,1038.75],[20613,1060.12],[20620,1032.39],[20621,1029.17],[20622,1020.16],[20623,1028.3],[20626,1033.63],[20627,1035.06],[20628,1041.73],[20629,1046.35],[20630,1043.08],[20634,1050.38],[20635,1053.47],[20636,1055.13],[20637,1053.85],[20640,1054.38],[20641,1059.54],[20642,1059.48],[20643,1069.14],[20644,1062.19],[20647,1055.87],[20648,1057.66],[20649,1056.29],[20651,1060.81],[20654,1068.07],[20655,1065.07],[20656,1063.55],[20657,1068.33],[20658,1076.37],[20661,1075.65],[20662,1070.98],[20663,1066.12],[20664,1069.47],[20665,1066.4],[20668,1070.35],[20669,1064.56],[20670,1054.01],[20671,1053.36],[20672,1053.08],[20675,1054.31],[20676,1057.59],[20677,1055.05],[20678,1050.93],[20679,1052.92]],"utm":[[20089,67429],[20120,67294],[20148,68034],[20179,68306],[20209,68648],[20240,68785],[20270,68923],[20301,68647],[20332,69265],[20362,69265],[20393,69542],[20423,69542],[20454,69751],[20485,69611],[20513,69889],[20544,69889],[20574,70588],[20605,71506],[20635,71649],[20666,71649],[20697,71721]],"ipc":[[20089,1.1],[20120,0.4],[20148,0.5],[20179,0.2],[20209,0.2],[20240,-0.4],[20270,0.9],[20301,0],[20332,0.4],[20362,0],[20393,0.3],[20423,-0.2]],"imacec":[[20089,2.5],[20120,-0.1],[20148,3.8],[20179,2.5],[20209,3.2],[20240,3.1],[20270,1.8],[20301,0.5],[20332,3.2],[20362,2.2],[20393,1.2],[20423,1.7],[20454,-0.1],[20485,-0.3],[20513,-0.1],[20544,-1.2],[20574,-0.9],[20605,2.4]],"tpm":[[20090,5],[20097,5],[20104,5],[20111,5],[20118,5],[20125,5],[20132,5],[20139,5],[20146,5],[20153,5],[20160,5],[20167,5],[20174,5],[20181,5],[20188,5],[20195,5],[20202,5],[20210,5],[20217,5],[20224,5],[20231,5],[20238,5],[20245,5],[20252,5],[20262,5],[20269,5],[20276,5],[20283,5],[20290,5],[20297,5],[20304,4.75],[20311,4.75],[20318,4.75],[20325,4.75],[20332,4.75],[20340,4.75],[20347,4.75],[20354,4.75],[20361,4.75],[20368,4.75],[20375,4.75],[20382,4.75],[20389,4.75],[20396,4.75],[20403,4.75],[20410,4.75],[20417,4.75],[20424,4.75],[20431,4.75],[20438,4.75],[20445,4.5],[20452,4.5],[20459,4.5],[20466,4.5],[20473,4.5],[20480,4.5],[20487,4.5],[20494,4.5],[20501,4.5],[20508,4.5],[20515,4.5],[20522,4.5],[20529,4.5],[20536,4.5],[20543,4.5],[20550,4.5],[20557,4.5],[20564,4.5],[20571,4.5],[20578,4.5],[20585,4.5],[20592,4.5],[20599,4.5],[20606,4.5],[20613,4.5],[20620,4.5],[20621,4.5],[20622,4.5],[20623,4.5],[20626,4.5],[20627,4.5],[20628,4.5],[20629,4.5],[20630,4.5],[20634,4.5],[20635,4.5],[20636,4.5],[20637,4.5],[20640,4.5],[20641,4.5],[20642,4.5],[20643,4.5],[20644,4.5],[20647,4.5],[20648,4.5],[20649,4.5],[20651,4.5],[20654,4.5],[20655,4.5],[20656,4.5],[20657,4.5],[20658,4.5],[20661,4.5],[20662,4.5],[20663,4.5],[20664,4.5],[20665,4.5],[20668,4.5],[20669,4.5],[20670,4.5],[20671,4.5],[20672,4.5],[20675,4.5],[20676,4.5],[20677,4.5],[20678,4.5],[20679,4.5]],"libra_cobre":[[20090,4.02],[20097,4.03],[20104,4.1],[20111,4.16],[20118,4.02],[20125,4.09],[20132,4.19],[20139,4.26],[20146,4.25],[20153,4.23],[20160,4.37],[20167,4.47],[20174,4.58],[20181,4.38],[20188,3.91],[20195,4.14],[20202,4.24],[20210,4.28],[20217,4.28],[20224,4.36],[20231,4.33],[20238,4.36],[20245,4.39],[20252,4.4],[20262,4.43],[20269,4.64],[20276,4.56],[20283,4.4],[20290,4.36],[20297,4.46],[20304,4.34],[20311,4.36],[20318,4.41],[20325,4.37],[20332,4.42],[20340,4.46],[20347,4.53],[20354,4.5],[20361,4.6],[20368,4.85],[20375,4.76],[20382,4.8],[20389,4.96],[20396,4.93],[20403,4.85],[20410,4.92],[20417,4.89],[20424,5.1],[20431,5.22],[20438,5.23],[20445,5.39],[20452,5.53],[20459,5.67],[20466,5.91],[20473,5.84],[20480,5.92],[20487,5.93],[20494,5.86],[20501,5.79],[20508,5.84],[20515,6.03],[20522,5.81],[20529,5.75],[20536,5.37],[20543,5.5],[20550,5.57],[20557,5.81],[20564,6.02],[20571,6.01],[20578,5.86],[20585,6.13],[20592,6.13],[20599,6.18],[20606,6.17],[20613,6.12],[20620,6.19],[20621,6.2],[20622,6.21],[20623,6.24],[20626,6.18],[20627,6.14],[20628,6.16],[20629,6.03],[20630,5.91],[20634,6],[20635,6.01],[20636,6.06],[20637,6.01],[20640,6.03],[20641,6.04],[20642,6.05],[20643,6.03],[20644,5.94],[20647,6.1],[20648,6.09],[20649,6.12],[20651,6.17],[20654,6.15],[20655,6.12],[20656,6.18],[20657,6.3],[20658,6.27],[20661,6.17],[20662,6.19],[20663,6.25],[20664,6.22],[20665,6.17],[20668,6.28],[20669,6.28],[20670,6.32],[20671,6.43],[20672,6.45],[20675,6.45],[20676,6.44],[20677,6.5],[20678,6.51],[20679,6.48]],"tasa_desempleo":[[20089,8.02],[20120,8.38],[20148,8.71],[20179,8.84],[20209,8.94],[20240,8.89],[20270,8.7],[20301,8.56],[20332,8.53],[20362,8.45],[20393,8.42],[20423,8.05],[20454,8.28],[20485,8.33],[20513,8.93],[20544,9.11],[20574,9.44],[20605,9.44]],"ivp":[[20089,39738.7],[20096,39772.3],[20103,39804.4],[20110,39836.3],[20117,39868.2],[20124,39900.1],[20131,39934.1],[20138,39970.8],[20145,40007.6],[20152,40044.5],[20159,40082.5],[20166,40122.3],[20173,40162],[20180,40201.8],[20187,40241.7],[20194,40287.8],[20201,40333.9],[20208,40380.2],[20215,40426.4],[20222,40464.3],[20229,40498.8],[20236,40533.3],[20243,40567.8],[20250,40602],[20257,40635.5],[20264,40668.9],[20271,40702.4],[20278,40736],[20285,40766.4],[20292,40796.9],[20299,40827.4],[20306,40857.9],[20313,40886.7],[20320,40914.3],[20327,40942],[20334,40969.6],[20342,40999.5],[20349,41021.2],[20356,41042.9],[20363,41064.6],[20370,41086.4],[20377,41107.2],[20384,41128.1],[20391,41149],[20398,41169.9],[20405,41189.5],[20412,41207.9],[20419,41226.4],[20426,41244.9],[20433,41263.8],[20440,41283.3],[20447,41302.9],[20454,41322.6],[20461,41342.2],[20468,41364.6],[20475,41387.6],[20482,41410.5],[20489,41433.4],[20496,41453.3],[20503,41469.1],[20510,41484.8],[20517,41500.6],[20524,41516.1],[20531,41531.4],[20538,41546.7],[20545,41562.1],[20552,41577.4],[20559,41600.8],[20566,41624.2],[20573,41647.7],[20580,41671.2],[20587,41709],[20594,41752.6],[20601,41796.2],[20608,41839.9],[20615,41883.2],[20620,41913.3],[20621,41919.3],[20622,41925.3],[20623,41931.3],[20624,41937.4],[20625,41943.4],[20626,41949.4],[20627,41955.4],[20628,41961.5],[20629,41967.5],[20630,41973.5],[20631,41979.6],[20632,41985.6],[20633,41991.6],[20634,41997.7],[20635,42003.7],[20636,42009.7],[20637,42015.8],[20638,42021.8],[20639,42027.8],[20640,42033.9],[20641,42039.9],[20642,42045.9],[20643,42052],[20644,42058.5],[20645,42064.9],[20646,42071.4],[20647,42077.9],[20648,42084.4],[20649,42090.9],[20650,42097.4],[20651,42103.9],[20652,42110.3],[20653,42116.8],[20654,42123.3],[20655,42129.8],[20656,42136.3],[20657,42142.8],[20658,42149.3],[20659,42155.8],[20660,42162.3],[20661,42168.8],[20662,42175.3],[20663,42181.8],[20664,42188.3],[20665,42194.8],[20666,42201.3],[20667,42207.8],[20668,42214.3],[20669,42220.8],[20670,42227.3],[20671,42233.8],[20672,42240.3],[20673,42246.8],[20674,42253.3],[20675,42259.1],[20676,42264.8],[20677,42270.6],[20678,42276.4],[20679,42282.1],[20680,42287.9],[20681,42293.7],[20682,42299.4],[20683,42305.2],[20684,42311],[20685,42316.7],[20686,42322.5],[20687,42328.3],[20688,42334],[20689,42339.8],[20690,42345.6],[20691,42351.3],[20692,42357.1],[20693,42362.9],[20694,42368.7],[20695,42374.4],[20696,42380.2],[20697,42386],[20698,42391.8],[20699,42397.5],[20700,42403.3],[20701,42409.1],[20702,42414.9],[20703,42420.7],[20704,42426.4],[20705,42432.2]],"bitcoin":[[20315,114028000],[20322,108089000],[20329,108744000],[20336,106847000],[20343,110337000],[20350,111901000],[20357,104965000],[20364,116364000],[20371,116226000],[20378,103547000],[20385,103706000],[20392,102152000],[20399,95603100],[20406,92069000],[20413,81333700],[20420,84754700],[20427,84922800],[20434,84221700],[20441,77814400],[20448,78987400],[20455,80470000],[20462,81481600],[20469,84761600],[20476,77811900],[20483,73326300],[20490,54045100],[20497,57174500],[20504,58061500],[20511,58969300],[20518,64588600],[20525,64602900],[20532,64755700],[20539,63636300],[20546,61491700],[20553,63873500],[20560,65849900],[20567,70059500],[20574,68590800],[20581,71325400],[20588,73617100],[20595,69855800],[20602,65553600],[20609,58347800],[20616,57321500],[20620,58719200],[20621,58194500],[20622,58043900],[20623,56762200],[20624,57297000],[20625,57937900],[20626,57337900],[20627,58436800],[20628,57569100],[20629,56212800],[20630,55172600],[20631,55445600],[20632,55306500],[20633,54869500],[20634,55464700],[20635,54206400],[20636,55484500],[20637,56711800],[20638,57692600],[20639,58125900],[20640,59013000],[20641,59328500],[20642,59228600],[20643,57731700],[20644,58425600],[20645,59274400],[20646,59158200],[20647,59348100],[20648,57642300],[20649,60145500],[20650,59862100],[20651,58984300],[20652,59524900],[20653,60354600],[20654,60433200],[20655,60920500],[20656,62175200],[20657,61877200],[20658,61285800],[20659,60758700],[20660,60964700],[20661,61815600],[20662,59887700],[20663,59792200],[20664,59803700],[20665,59954300],[20666,58518900],[20667,58431600],[20668,58608100],[20669,58771100],[20670,58593500],[20671,59242500],[20672,58881400],[20673,59265000],[20674,59304700],[20675,59217700],[20676,58514200],[20677,58291300],[20678,57992900],[20679,58191900],[20679,57638500]],"ethereum":[[20315,4392360],[20322,4065160],[20329,4359630],[20336,4150920],[20343,4254770],[20350,4387270],[20357,3743840],[20364,4329750],[20371,4171270],[20378,3727410],[20385,3633270],[20392,3582130],[20399,3127350],[20406,2983050],[20413,2659710],[20420,2797960],[20427,2889490],[20434,2947770],[20441,2574080],[20448,2628630],[20455,2723170],[20462,2780330],[20469,2943120],[20476,2566420],[20483,2445610],[20490,1570100],[20497,1680790],[20504,1690110],[20511,1771350],[20518,1889640],[20525,1900840],[20532,1981030],[20539,1907030],[20546,1975030],[20553,2055580],[20560,2059330],[20567,2086420],[20574,2029000],[20581,2042220],[20588,2073030],[20595,1920590],[20602,1787320],[20609,1617580],[20616,1507880],[20620,1589900],[20621,1588690],[20622,1575070],[20623,1543280],[20624,1542190],[20625,1568320],[20626,1545420],[20627,1576750],[20628,1530330],[20629,1493710],[20630,1446600],[20631,1456680],[20632,1450100],[20633,1448020],[20634,1484300],[20635,1452970],[20636,1488020],[20637,1566570],[20638,1620450],[20639,1639900],[20640,1655940],[20641,1667240],[20642,1656380],[20643,1615870],[20644,1613080],[20645,1659810],[20646,1658090],[20647,1680910],[20648,1642010],[20649,1749580],[20650,1772960],[20651,1722590],[20652,1714600],[20653,1734680],[20654,1748240],[20655,1777360],[20656,1802660],[20657,1810530],[20658,1768800],[20659,1764270],[20660,1776370],[20661,1847350],[20662,1778160],[20663,1797770],[20664,1784530],[20665,1775910],[20666,1733470],[20667,1716230],[20668,1737660],[20669,1720560],[20670,1709260],[20671,1748960],[20672,1741820],[20673,1746870],[20674,1749820],[20675,1743510],[20676,1713250],[20677,1725220],[20678,1717370],[20679,1728800],[20679,1722380]],"solana":[[20315,185679],[20322,173344],[20329,207216],[20336,195354],[20343,218365],[20350,236467],[20357,185854],[20364,226698],[20371,210982],[20378,176787],[20385,180280],[20392,173849],[20399,146393],[20406,133829],[20413,125459],[20420,130715],[20427,128156],[20434,124225],[20441,108853],[20448,108724],[20455,115093],[20462,123867],[20469,126243],[20476,111740],[20483,102137],[20490,67497.5],[20497,67849.6],[20504,71651.5],[20511,75204.1],[20518,81069.1],[20525,79736.9],[20532,82535.3],[20539,80148.2],[20546,75786.9],[20553,78248.6],[20560,78109.5],[20567,77098.9],[20574,74652.9],[20581,78818.8],[20588,83662.3],[20595,78524.5],[20602,73023.2],[20609,62920],[20616,60262.6],[20620,65501.1],[20621,65150.8],[20622,64834.9],[20623,62855.2],[20624,62879],[20625,65987.1],[20626,65647.5],[20627,65667.1],[20628,63950.8],[20629,62626.9],[20630,62475],[20631,66338.4],[20632,64947.7],[20633,65731.7],[20634,69169.1],[20635,68088.7],[20636,71577.9],[20637,74354.7],[20638,75896.4],[20639,75276.7],[20640,75653],[20641,75909.8],[20642,75360.8],[20643,72146.1],[20644,72108.5],[20645,72179.3],[20646,71143.8],[20647,71565.8],[20648,69352.6],[20649,72015.8],[20650,71444.2],[20651,69596.2],[20652,69861.4],[20653,70307.6],[20654,71311.9],[20655,72662.5],[20656,72986.7],[20657,72985.4],[20658,71398.4],[20659,70074.3],[20660,70587.6],[20661,72504.9],[20662,69785.8],[20663,69084.3],[20664,68850.2],[20665,68973.8],[20666,67811],[20667,66890.9],[20668,67866.5],[20669,68042.9],[20670,67425.6],[20671,67895.7],[20672,66556.8],[20673,67228.5],[20674,69403.6],[20675,69631.4],[20676,69508.4],[20677,69923.1],[20678,69105.3],[20679,69910.2],[20679,69236.7]]};
+const SNAPDATE="14-08-2026";
+
+const NM=new Intl.DisplayNames(['es'],{type:'currency'});
+const XFLAG={EUR:'🇪🇺',XAF:'🌍',XOF:'🌍',XPF:'🌏',XCD:'🌎',XCG:'🌎',XDR:'🏳️',ANG:'🇨🇼',CLF:'🇨🇱',
+  BTC:'₿',ETH:'Ξ',USDT:'₮',BNB:'🔶',SOL:'◎',XRP:'✕',ADA:'₳',DOGE:'🐕',UF:'🇨🇱',UTM:'🇨🇱'};
+const CRYPTO={BTC:'bitcoin',ETH:'ethereum',USDT:'tether',BNB:'binancecoin',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin'};
+const LOCAL={UF:'Unidad de Fomento',UTM:'Unidad Tributaria Mensual',CLF:'UF (índice)',
+  BTC:'Bitcoin',ETH:'Ethereum',USDT:'Tether',BNB:'BNB',SOL:'Solana',XRP:'XRP',ADA:'Cardano',DOGE:'Dogecoin',
+  FOK:'Corona feroesa',GGP:'Libra de Guernsey',IMP:'Libra de Man',JEP:'Libra de Jersey',
+  KID:'Dólar de Kiribati',TVD:'Dólar de Tuvalu'};
+
+// Indicadores con historial. tipo: mind = mindicador.cl, cg = CoinGecko
+const IND={
+  dolar:{n:'Dólar observado',t:'mind',u:'$',col:'var(--green)'},
+  uf:{n:'Unidad de Fomento',t:'mind',u:'$',col:'var(--green)'},
+  euro:{n:'Euro',t:'mind',u:'$',col:'var(--blue)'},
+  utm:{n:'UTM',t:'mind',u:'$',col:'var(--blue)'},
+  ipc:{n:'IPC mensual',t:'mind',u:'%',col:'var(--orange)'},
+  imacec:{n:'IMACEC',t:'mind',u:'%',col:'var(--orange)'},
+  tpm:{n:'Tasa Política Monetaria',t:'mind',u:'%',col:'var(--purple)'},
+  libra_cobre:{n:'Libra de cobre',t:'mind',u:'US$',col:'var(--orange)'},
+  tasa_desempleo:{n:'Desempleo',t:'mind',u:'%',col:'var(--red)'},
+  ivp:{n:'IVP',t:'mind',u:'$',col:'var(--dim)'},
+  bitcoin:{n:'Bitcoin (CLP)',t:'cg',id:'bitcoin',u:'$',col:'var(--orange)'},
+  ethereum:{n:'Ethereum (CLP)',t:'cg',id:'ethereum',u:'$',col:'var(--purple)'},
+  solana:{n:'Solana (CLP)',t:'cg',id:'solana',u:'$',col:'var(--green)'}
+};
+const RANGES=[['1M',30],['3M',90],['6M',180],['1A',365],['Máx',3650]];
+
+/* ---------- estado ---------- */
+const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+          set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let R=SNAP;
+let sel=LS.get('sel',['USD','EUR','UF','UTM','BTC','ETH','ARS','BRL','PEN','GBP']);
+let base=LS.get('base','CLP');
+let cardsSel=LS.get('cards',['uf','dolar','bitcoin','ethereum']);
+let cfg=Object.assign({theme:'oscuro',dec:'auto',ncards:4,edit:0},LS.get('cfg',{}));
+let hInd=LS.get('hind','dolar'), hDays=LS.get('hdays',90), hData=null;
+const hCache={};
+
+/* ---------- utilidades ---------- */
+const $=s=>document.querySelector(s);
+const el=id=>document.getElementById(id);
+const flag=c=>XFLAG[c]||String.fromCodePoint(...[...c.slice(0,2)].map(x=>0x1F1A5+x.charCodeAt(0)));
+const name=c=>{if(LOCAL[c])return LOCAL[c];try{return NM.of(c)}catch(e){return c}};
+const autoDec=v=>{v=Math.abs(v);return v>=1000?0:v>=1?2:v>=.01?4:8};
+const DEC=v=>cfg.dec==='auto'?autoDec(v):+cfg.dec;
+const fmt=(v,d)=>v.toLocaleString('es-CL',{minimumFractionDigits:Math.min(d,2),maximumFractionDigits:d});
+const money=v=>v.toLocaleString('es-CL',{maximumFractionDigits:Math.abs(v)>=1000?0:2});
+const num=e=>parseFloat((e.value||'').replace(/\./g,'').replace(',','.'));
+const dayfmt=d=>d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'2-digit'});
+
+/* ---------- tarjetas ---------- */
+function cards(){
+  el('cards').innerHTML=cardsSel.slice(0,cfg.ncards).map(k=>{
+    const i=IND[k], v=indValue(k), ch=hCache[k+'_365']?pct(hCache[k+'_365'],k):null;
+    return `<button class="c${k===hInd?' on':''}" onclick="setInd('${k}')">
+      <b>${i.n}</b><s style="color:${i.col}">${i.u==='%'?'':i.u}${v==null?'—':money(v)}${i.u==='%'?'%':''}</s>
+      ${ch!==null?`<i class="${ch>=0?'up':'dn'}">${ch>=0?'▲':'▼'} ${pc(ch)}${unit(k)} año</i>`:''}</button>`}).join('');
+}
+function indValue(k){
+  if(k==='dolar')return R.USD; if(k==='uf')return R.UF; if(k==='utm')return R.UTM; if(k==='euro')return R.EUR;
+  if(IND[k].t==='cg'){const c=Object.keys(CRYPTO).find(x=>CRYPTO[x]===IND[k].id);return c?R[c]:null}
+  const s=hCache[k+'_365']; return s&&s.length?s[s.length-1][1]:null;
+}
+// Variación últimos 365 días. Si el indicador ya es un %, la variación son puntos porcentuales.
+function pct(s,k){if(!s||s.length<2)return null;
+  const w=s.filter(p=>p[0]>=Date.now()-365*864e5);
+  const a=(w.length>1?w:s)[0][1], b=s[s.length-1][1];
+  if(IND[k]&&IND[k].u==='%')return b-a;
+  return a?(b/a-1)*100:null}
+const unit=k=>IND[k]&&IND[k].u==='%'?' pp':'%';
+const pc=v=>Math.abs(v).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:2});
+
+/* ---------- calculadora (bidireccional) ---------- */
+function rows(){
+  el('list').innerHTML=sel.filter(c=>R[c]).map((c,i)=>
+    `<div class="r${cfg.edit?' edit':''}"><span class="fl">${flag(c)}</span>
+      <span class="id"><span class="cd">${c}</span><span class="nm">${name(c)}</span></span>
+      <input class="vl" id="v${c}" inputmode="decimal" enterkeyhint="done" oninput="calc('${c}')" onfocus="this.select()">
+      ${cfg.edit?`<button class="mv" onclick="mv('${c}',-1)">↑</button><button class="mv" onclick="mv('${c}',1)">↓</button>`:''}
+      <button class="mv" onclick="rm('${c}')">×</button></div>`).join('');
+  calc(base);
+}
+function rm(c){sel=sel.filter(x=>x!==c);LS.set('sel',sel);rows();fillPick()}
+function mv(c,d){const i=sel.indexOf(c),j=i+d;if(j<0||j>=sel.length)return;
+  [sel[i],sel[j]]=[sel[j],sel[i]];LS.set('sel',sel);rows()}
+function swap(){ // la primera moneda de la lista pasa a ser la base
+  const c=sel[0];if(!c)return;sel[0]=base;base=c;LS.set('sel',sel);LS.set('base',base);fillPick();rows()}
+function calc(src){
+  const from=src===base?el('amt'):el('v'+src);
+  if(!from)return;
+  const v=num(from);
+  const put=(c,node)=>{if(!node||c===src)return;const x=v*R[src]/R[c];
+    node.value=isFinite(x)?fmt(x,DEC(x)):''};
+  put(base,el('amt'));
+  sel.forEach(c=>put(c,el('v'+c)));
+  LS.set('amt',el('amt').value);
+}
+function fillPick(){
+  const all=Object.keys(R).sort((a,b)=>name(a).localeCompare(name(b),'es'));
+  el('pick').innerHTML='<option value="">+ Agregar moneda…</option>'+
+    all.filter(c=>!sel.includes(c)&&c!==base).map(c=>`<option value="${c}">${flag(c)}  ${c} — ${name(c)}</option>`).join('');
+  el('base').innerHTML=all.map(c=>`<option value="${c}"${c===base?' selected':''}>${flag(c)} ${c}</option>`).join('');
+}
+
+/* ---------- histórico ---------- */
+function hchips(){
+  el('hsel').innerHTML=Object.keys(IND).map(k=>
+    `<button class="chip${k===hInd?' on':''}" onclick="setInd('${k}')">${IND[k].n}</button>`).join('');
+  el('hrange').innerHTML=RANGES.map(([t,d])=>
+    `<button class="chip${d===hDays?' on':''}" onclick="setRange(${d})">${t}</button>`).join('');
+  el('hname').textContent=IND[hInd].n;
+}
+function setInd(k){hInd=k;LS.set('hind',k);hchips();cards();hist()}
+function setRange(d){hDays=d;LS.set('hdays',d);hchips();hist()}
+
+// serie embebida en el archivo (siempre disponible, sin red)
+const embedded=k=>HIST[k]?HIST[k].map(p=>[p[0]*864e5,p[1]]):null;
+
+async function serie(k,days){
+  const key=k+'_'+(days>365?3650:365);
+  if(hCache[key])return hCache[key];
+  const c=LS.get('h_'+key,null);
+  if(c&&Date.now()-c.t<6*3600e3){hCache[key]=c.s;return c.s}
+  const i=IND[k];let s=[];
+  try{
+    if(i.t==='mind'){
+      const yr=new Date().getFullYear(), yrs=days>365?[yr-2,yr-1,yr]:[yr-1,yr];
+      const res=await Promise.all(yrs.map(y=>fetch(`https://mindicador.cl/api/${k}/${y}`).then(r=>r.json()).catch(()=>null)));
+      res.filter(Boolean).forEach(r=>(r.serie||[]).forEach(p=>s.push([+new Date(p.fecha),p.valor])));
+    }else{
+      const r=await fetch(`https://api.coingecko.com/api/v3/coins/${i.id}/market_chart?vs_currency=clp&days=${days>365?'max':365}&interval=daily`).then(r=>r.json());
+      s=(r.prices||[]).map(p=>[p[0],p[1]]);
+    }
+  }catch(e){s=[]}
+  if(!s.length)return hCache[key]=embedded(k)||[];   // sin red: gráfico con lo embebido
+  s.sort((a,b)=>a[0]-b[0]);
+  hCache[key]=s;LS.set('h_'+key,{t:Date.now(),s});
+  return s;
+}
+
+async function hist(){
+  draw(null);
+  try{
+    const all=await serie(hInd,hDays);
+    const cut=Date.now()-hDays*864e5;
+    hData=all.filter(p=>p[0]>=cut);
+    if(hData.length<2)hData=all.slice(-2);
+    draw(hData);cards();
+  }catch(e){el('hval').textContent='sin datos';}
+}
+
+function draw(s,hoverIdx){
+  const svg=el('chart'),W=340,H=190,P=6;
+  if(!s||s.length<2){svg.innerHTML='';el('hval').textContent='cargando…';el('hchg').textContent='';el('hdate').textContent='';return}
+  const ys=s.map(p=>p[1]),min=Math.min(...ys),max=Math.max(...ys),rg=(max-min)||1;
+  const X=i=>P+i*(W-2*P)/(s.length-1), Y=v=>P+(1-(v-min)/rg)*(H-2*P);
+  const line=s.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ');
+  const up=ys[ys.length-1]>=ys[0], col=up?'var(--green)':'var(--red)';
+  const i=hoverIdx==null?s.length-1:hoverIdx, cx=X(i), cy=Y(s[i][1]);
+  svg.innerHTML=`<defs><linearGradient id="ar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line} L ${W-P} ${H} L ${P} ${H} Z" fill="url(#ar)"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <line x1="${cx}" y1="0" x2="${cx}" y2="${H}" stroke="var(--line)" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="4" fill="${col}"/>`;
+  const u=IND[hInd].u, v=s[i][1], ch=u==='%'?v-s[0][1]:(v/s[0][1]-1)*100;
+  el('hval').textContent=(u==='%'?'':u)+money(v)+(u==='%'?'%':'');
+  el('hchg').innerHTML=`<span class="${ch>=0?'up':'dn'}">${ch>=0?'▲':'▼'} ${pc(ch)}${unit(hInd)}</span> en el período`;
+  el('hdate').innerHTML=dayfmt(new Date(s[i][0]))+'<br>mín '+money(min)+' · máx '+money(max);
+}
+
+// crosshair con dedo o mouse
+function touch(ev){
+  if(!hData||hData.length<2)return;
+  const r=el('chart').getBoundingClientRect();
+  const x=((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)/r.width;
+  draw(hData,Math.max(0,Math.min(hData.length-1,Math.round(x*(hData.length-1)))));
+  if(ev.cancelable)ev.preventDefault();
+}
+['touchstart','touchmove','mousemove'].forEach(t=>el('chart').addEventListener(t,touch,{passive:false}));
+['touchend','mouseleave'].forEach(t=>el('chart').addEventListener(t,()=>draw(hData)));
+
+/* ---------- ajustes ---------- */
+function applyCfg(){
+  const t=cfg.theme==='auto'?(matchMedia('(prefers-color-scheme: light)').matches?'claro':'oscuro'):cfg.theme;
+  document.documentElement.dataset.t=t;
+  el('theme').value=cfg.theme;el('dec').value=cfg.dec;el('ncards').value=cfg.ncards;el('editm').value=cfg.edit;
+  LS.set('cfg',cfg);cards();rows();
+}
+el('cfgb').onclick=()=>el('cfg').classList.toggle('open');
+['theme','dec','ncards','editm'].forEach(id=>el(id).addEventListener('change',e=>{
+  cfg[id==='ncards'?'ncards':id==='editm'?'edit':id]=id==='ncards'||id==='editm'?+e.target.value:e.target.value;
+  applyCfg()}));
+function reset(){try{localStorage.clear()}catch(e){}location.reload()}
+
+/* ---------- eventos ---------- */
+el('amt').value=LS.get('amt','1.000');
+el('amt').addEventListener('input',()=>calc(base));
+el('amt').addEventListener('focus',e=>e.target.select());
+el('base').addEventListener('change',e=>{base=e.target.value;LS.set('base',base);fillPick();rows()});
+el('pick').addEventListener('change',e=>{if(!e.target.value)return;sel.push(e.target.value);LS.set('sel',sel);rows();fillPick()});
+el('rf').onclick=()=>load(1);
+
+/* ---------- carga ---------- */
+function apply(rates,when){R=rates;cards();fillPick();rows();el('st').textContent=when}
+
+async function load(force){
+  const c=LS.get('rates',null);
+  apply(c&&!force?c.R:R, c?c.t+' · guardado':'valores al '+SNAPDATE);
+  el('rf').classList.add('spin');
+  try{
+    const sig=AbortSignal.timeout?AbortSignal.timeout(8000):undefined;
+    const get=u=>fetch(u,{signal:sig}).then(r=>r.json());
+    const [fx,ind,ck]=await Promise.all([
+      get('https://open.er-api.com/v6/latest/USD'),
+      get('https://mindicador.cl/api').catch(()=>null),
+      get('https://api.coingecko.com/api/v3/simple/price?ids='+Object.values(CRYPTO).join(',')+'&vs_currencies=clp').catch(()=>({}))
+    ]);
+    const usd=ind?ind.dolar.valor:fx.rates.CLP;
+    const rates={};
+    for(const k in fx.rates)rates[k]=usd/fx.rates[k];
+    rates.CLP=1;
+    if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.USD=usd}
+    for(const k in CRYPTO)if(ck[CRYPTO[k]])rates[k]=ck[CRYPTO[k]].clp;
+    const t=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    apply(rates,'Actualizado: '+t);
+    LS.set('rates',{R:rates,t});
+  }catch(e){el('st').textContent+=' · sin red'}
+  el('rf').classList.remove('spin');
+}
+
+// series de las tarjetas en segundo plano, para mostrar la variación anual de cada una
+async function cardSeries(){
+  for(const k of cardsSel.slice(0,cfg.ncards)){try{await serie(k,365);cards()}catch(e){}}
+}
+hchips();applyCfg();load();hist().then(cardSeries);
+// refresca al volver a la app
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(1)});
+</script>
+</body>
+</html>
