@@ -116,6 +116,14 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
   <div class="cfgrow"><span>Reordenar monedas</span>
     <select id="editm"><option value="0">Off</option><option value="1">On</option></select></div>
   <div class="cfgrow"><span>Restablecer todo</span><button class="chip" onclick="reset()">Borrar ajustes</button></div>
+  <div class="mini" style="text-align:left;line-height:1.6">
+    <b>Fuentes</b> (todas gratuitas y verificables)<br>
+    · Dólar, euro, UF, UTM, IPC, TPM, cobre y desempleo: <b>Banco Central de Chile</b> vía mindicador.cl<br>
+    · Resto de monedas: exchangerate-api.com · histórico de pares: <b>Banco Central Europeo</b> vía frankfurter.dev<br>
+    · Criptomonedas: CoinGecko en dólares, contrastado con <b>Binance</b><br>
+    · Oro, plata y platino: gold-api.com (onza troy) · histórico del oro: Tether Gold<br>
+    Todo se convierte a pesos con el dólar observado, así el precio en dólares y en pesos siempre calzan.
+  </div>
 </div>
 
 <div class="cards" id="cards"></div>
@@ -223,6 +231,7 @@ let cfg=Object.assign({theme:'oscuro',dec:'auto',ncards:4,edit:0},LS.get('cfg',{
 let hInd=LS.get('hind','dolar'), hDays=LS.get('hdays',90), hData=null;
 let cpA=LS.get('cpa','USD'), cpB=LS.get('cpb','CLP'), cpDays=LS.get('cpdays',90), cpData=null;
 const hCache={}, pairCache={};
+let USD_PRICE=LS.get('usdprice',{});   // precio en dólares de criptos y metales, tal como lo publica el mercado
 
 /* ---------- utilidades ---------- */
 const $=s=>document.querySelector(s);
@@ -240,8 +249,10 @@ const dayfmt=d=>d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'
 function cards(){
   el('cards').innerHTML=cardsSel.slice(0,cfg.ncards).map(k=>{
     const i=IND[k], v=indValue(k), ch=hCache[k+'_365']?pct(hCache[k+'_365'],k):null;
+    const code=IND_CODE[k], u=code&&USD_PRICE[code];   // criptos y metales: además su precio en dólares
     return `<button class="c${k===hInd?' on':''}" onclick="setInd('${k}')">
       <b>${i.n}</b><s style="color:${i.col}">${i.u==='%'?'':i.u}${v==null?'—':money(v)}${i.u==='%'?'%':''}</s>
+      ${u?`<i style="color:var(--dim)">US$${money(u)}</i><br>`:''}
       ${ch!==null?`<i class="${ch>=0?'up':'dn'}">${ch>=0?'▲':'▼'} ${pc(ch)}${unit(k)} año</i>`:''}</button>`}).join('');
 }
 // Cada indicador con un equivalente en R (CLP por unidad) toma el valor de ahí; el resto, de su serie.
@@ -523,22 +534,32 @@ async function load(force){
   try{
     const sig=AbortSignal.timeout?AbortSignal.timeout(8000):undefined;
     const get=u=>fetch(u,{signal:sig}).then(r=>r.json());
-    const [fx,ind,ck,...mt]=await Promise.all([
+    const [fx,ind,ck,bin,...mt]=await Promise.all([
       get('https://open.er-api.com/v6/latest/USD'),
       get('https://mindicador.cl/api').catch(()=>null),
-      get('https://api.coingecko.com/api/v3/simple/price?ids='+Object.values(CRYPTO).join(',')+'&vs_currencies=clp').catch(()=>({})),
+      // Cripto SIEMPRE en dólares: convertir con el mismo dólar de la app evita el desfase
+      // que aparecía al tomar el precio ya convertido a pesos por CoinGecko (su dólar es otro).
+      get('https://api.coingecko.com/api/v3/simple/price?ids='+Object.values(CRYPTO).join(',')+'&vs_currencies=usd').catch(()=>({})),
+      get('https://api.binance.com/api/v3/ticker/price?symbols=["BTCUSDT","ETHUSDT"]').catch(()=>null),
       ...Object.keys(METAL).map(s=>get('https://api.gold-api.com/price/'+s).catch(()=>null))
     ]);
     const usd=ind?ind.dolar.valor:fx.rates.CLP;
     const rates={};
     for(const k in fx.rates)rates[k]=usd/fx.rates[k];
     rates.CLP=1;
-    if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.USD=usd}
-    for(const k in CRYPTO)if(ck[CRYPTO[k]])rates[k]=ck[CRYPTO[k]].clp;
-    Object.keys(METAL).forEach((s,i)=>{const m=mt[i];if(m&&m.price)rates[s]=m.price*usd});
+    // Dólar, euro, UF y UTM vienen del Banco Central: son las cifras oficiales en Chile.
+    if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.USD=usd;rates.EUR=ind.euro.valor}
+    USD_PRICE={};
+    for(const k in CRYPTO)if(ck[CRYPTO[k]]&&ck[CRYPTO[k]].usd)USD_PRICE[k]=ck[CRYPTO[k]].usd;
+    // Binance como contraste: si CoinGecko se desvía más de 1%, mandan los datos del exchange.
+    if(Array.isArray(bin))bin.forEach(b=>{const k=b.symbol==='BTCUSDT'?'BTC':b.symbol==='ETHUSDT'?'ETH':null;
+      const p=parseFloat(b.price);
+      if(k&&p&&(!USD_PRICE[k]||Math.abs(p/USD_PRICE[k]-1)>0.01))USD_PRICE[k]=p});
+    Object.keys(METAL).forEach((s,i)=>{const m=mt[i];if(m&&m.price)USD_PRICE[s]=m.price});
+    for(const k in USD_PRICE)rates[k]=USD_PRICE[k]*usd;
     const t=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     apply(rates,'Actualizado: '+t);
-    LS.set('rates',{R:rates,t});
+    LS.set('rates',{R:rates,t});LS.set('usdprice',USD_PRICE);
   }catch(e){el('st').textContent+=' · sin red'}
   el('rf').classList.remove('spin');
 }
