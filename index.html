@@ -52,7 +52,8 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 .r .id{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden}
 .r .cd{font-size:14px;font-weight:700;flex:none}
 .r .nm{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.r .vl{width:42%;background:none;border:0;color:var(--txt);font-size:19px;font-weight:600;
+.r .sg{font-size:12px;color:var(--dim);flex:none;font-weight:700}
+.r .vl{width:36%;background:none;border:0;color:var(--txt);font-size:19px;font-weight:600;
   font-variant-numeric:tabular-nums;text-align:right;outline:none;-webkit-appearance:none;padding:2px 0}
 .r .vl:focus{color:var(--blue)}
 .r .mv{border:0;background:none;color:var(--line);font-size:15px;padding:0 1px;flex:none}
@@ -75,6 +76,12 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 .cfgrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
 .cfgrow select{background:var(--card2);border:0;color:var(--txt);font-size:14px;padding:8px 10px;border-radius:10px;-webkit-appearance:none;outline:none;max-width:60%}
 .mini{font-size:11px;color:var(--dim);margin-top:10px;text-align:center}
+.keys{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 4px}
+.keys button{border:0;border-radius:10px;background:var(--card2);color:var(--txt);font-size:16px;font-weight:600;padding:11px 0}
+.keys button.op{color:var(--blue)}
+.keys button.mem{font-size:12px;color:var(--dim)}
+.keys button.eq{background:var(--blue);color:#fff}
+.keys button.on{outline:2px solid var(--blue)}
 /* selector de moneda con buscador */
 .pill{display:flex;align-items:center;gap:8px;background:var(--card2);border:0;color:var(--txt);
   font-size:15px;font-weight:700;padding:11px 14px;border-radius:12px;width:100%;justify-content:center}
@@ -110,7 +117,13 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
   <div class="cfgrow"><span>Tema</span>
     <select id="theme"><option value="oscuro">Oscuro</option><option value="claro">Claro</option><option value="auto">Automático</option></select></div>
   <div class="cfgrow"><span>Decimales</span>
-    <select id="dec"><option value="auto">Automático</option><option value="0">0</option><option value="2">2</option><option value="4">4</option><option value="6">6</option></select></div>
+    <select id="dec"><option value="auto">Automático</option><option value="0">0</option><option value="2">2</option><option value="4">4</option><option value="6">6</option><option value="max">Sin límite</option></select></div>
+  <div class="cfgrow"><span>Símbolo de la moneda</span>
+    <select id="showsym"><option value="1">Mostrar</option><option value="0">Ocultar</option></select></div>
+  <div class="cfgrow"><span>Texto en negrita</span>
+    <select id="bold"><option value="0">No</option><option value="1">Sí</option></select></div>
+  <div class="cfgrow"><span>Tamaño del texto</span>
+    <select id="zoom"><option value="90">90%</option><option value="100">100%</option><option value="110">110%</option><option value="125">125%</option><option value="140">140%</option></select></div>
   <div class="cfgrow"><span>Tarjetas superiores</span>
     <select id="ncards"><option value="2">2</option><option value="4">4</option><option value="6">6</option><option value="8">8</option></select></div>
   <div class="cfgrow"><span>Reordenar monedas</span>
@@ -158,9 +171,12 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
   <p class="ttl"><span>⇄ Calculadora multidivisa</span><button onclick="swap()">Invertir</button></p>
   <div class="base">
     <button class="pill" id="base" style="width:auto;padding:6px 10px" onclick="pickBase()"></button>
+    <span id="basesym" class="sg" style="color:var(--dim);font-weight:700;font-size:13px"></span>
     <input id="amt" inputmode="decimal" enterkeyhint="done" placeholder="0">
   </div>
   <div class="chips" id="quick"></div>
+  <div class="keys" id="keys"></div>
+  <div class="mini" id="calcnote" style="margin:6px 0 0"></div>
   <div id="list"></div>
   <div class="add"><button class="pill" onclick="pickAdd()">＋ Agregar moneda, metal o cripto</button></div>
   <div class="mini">Escribe en cualquier fila: la conversión va en los dos sentidos.</div>
@@ -187,15 +203,34 @@ const SNAPDATE="14-08-2026";
 const NM=new Intl.DisplayNames(['es'],{type:'currency'});
 const XFLAG={EUR:'🇪🇺',XAF:'🌍',XOF:'🌍',XPF:'🌏',XCD:'🌎',XCG:'🌎',XDR:'🏳️',ANG:'🇨🇼',CLF:'🇨🇱',
   BTC:'₿',ETH:'Ξ',USDT:'₮',BNB:'🔶',SOL:'◎',XRP:'✕',ADA:'₳',DOGE:'🐕',UF:'🇨🇱',UTM:'🇨🇱',
-  XAU:'🥇',XAG:'🥈',XPT:'⚪'};
-const CRYPTO={BTC:'bitcoin',ETH:'ethereum',USDT:'tether',BNB:'binancecoin',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin'};
+  XAU:'🥇',XAG:'🥈',XPT:'⚪',WTI:'🛢',BRENT:'🛢',CU:'🟠',
+  TRX:'◈',LINK:'⬡',AVAX:'▲',DOT:'●',LTC:'Ł',BCH:'Ƀ',XLM:'✶',XMR:'ɱ',TON:'💎',SHIB:'🐕',
+  PEPE:'🐸',UNI:'🦄',ATOM:'⚛',NEAR:'◇',APT:'🅰',ARB:'🔵',OP:'🔴',SUI:'💧',HBAR:'ℏ',
+  ICP:'∞',FIL:'⬢',AAVE:'👻',ETC:'Ξ',USDC:'Ⓤ'};
+const CRYPTO={BTC:['bitcoin','BTCUSDT'],ETH:['ethereum','ETHUSDT'],USDT:['tether',null],
+ BNB:['binancecoin','BNBUSDT'],SOL:['solana','SOLUSDT'],XRP:['ripple','XRPUSDT'],ADA:['cardano','ADAUSDT'],
+ DOGE:['dogecoin','DOGEUSDT'],TRX:['tron','TRXUSDT'],LINK:['chainlink','LINKUSDT'],AVAX:['avalanche-2','AVAXUSDT'],
+ DOT:['polkadot','DOTUSDT'],LTC:['litecoin','LTCUSDT'],BCH:['bitcoin-cash','BCHUSDT'],XLM:['stellar','XLMUSDT'],
+ XMR:['monero',null],TON:['the-open-network','TONUSDT'],SHIB:['shiba-inu','SHIBUSDT'],PEPE:['pepe','PEPEUSDT'],
+ UNI:['uniswap','UNIUSDT'],ATOM:['cosmos','ATOMUSDT'],NEAR:['near','NEARUSDT'],APT:['aptos','APTUSDT'],
+ ARB:['arbitrum','ARBUSDT'],OP:['optimism','OPUSDT'],SUI:['sui','SUIUSDT'],HBAR:['hedera-hashgraph','HBARUSDT'],
+ ICP:['internet-computer','ICPUSDT'],FIL:['filecoin','FILUSDT'],AAVE:['aave','AAVEUSDT'],ETC:['ethereum-classic','ETCUSDT'],
+ USDC:['usd-coin','USDCUSDT']};
+const CG_ID=k=>CRYPTO[k][0], BIN=k=>CRYPTO[k]&&CRYPTO[k][1];
+// Materias primas con serie diaria gratuita (EIA publicada por datahub; 3-4 dias de rezago).
+const COMMOD={WTI:['Petroleo WTI','wti-daily'],BRENT:['Petroleo Brent','brent-daily']};
 // Metales al contado (onza troy) desde gold-api.com, sin clave.
 const METAL={XAU:'Oro',XAG:'Plata',XPT:'Platino'};
 const LOCAL={UF:'Unidad de Fomento',UTM:'Unidad Tributaria Mensual',CLF:'UF (índice)',
   BTC:'Bitcoin',ETH:'Ethereum',USDT:'Tether',BNB:'BNB',SOL:'Solana',XRP:'XRP',ADA:'Cardano',DOGE:'Dogecoin',
   FOK:'Corona feroesa',GGP:'Libra de Guernsey',IMP:'Libra de Man',JEP:'Libra de Jersey',
   KID:'Dólar de Kiribati',TVD:'Dólar de Tuvalu',
-  XAU:'Oro · onza troy',XAG:'Plata · onza troy',XPT:'Platino · onza troy'};
+  XAU:'Oro · onza troy',XAG:'Plata · onza troy',XPT:'Platino · onza troy',
+  WTI:'Petróleo WTI · barril',BRENT:'Petróleo Brent · barril',CU:'Cobre · libra',
+  TRX:'TRON',LINK:'Chainlink',AVAX:'Avalanche',DOT:'Polkadot',LTC:'Litecoin',BCH:'Bitcoin Cash',
+  XLM:'Stellar',XMR:'Monero',TON:'Toncoin',SHIB:'Shiba Inu',PEPE:'Pepe',UNI:'Uniswap',ATOM:'Cosmos',
+  NEAR:'NEAR Protocol',APT:'Aptos',ARB:'Arbitrum',OP:'Optimism',SUI:'Sui',HBAR:'Hedera',
+  ICP:'Internet Computer',FIL:'Filecoin',AAVE:'Aave',ETC:'Ethereum Classic',USDC:'USD Coin'};
 
 // Indicadores con historial. tipo: mind = mindicador.cl, cg = CoinGecko
 const IND={
@@ -215,9 +250,13 @@ const IND={
   // El oro usa Tether Gold (1 token = 1 onza troy): es la serie diaria gratuita más fiel al spot.
   oro:{n:'Oro · onza (CLP)',t:'cg',id:'tether-gold',u:'$',col:'var(--orange)'},
   plata:{n:'Plata · onza (CLP)',t:'spot',sym:'XAG',u:'$',col:'var(--dim)'},
-  platino:{n:'Platino · onza (CLP)',t:'spot',sym:'XPT',u:'$',col:'var(--dim)'}
+  platino:{n:'Platino · onza (CLP)',t:'spot',sym:'XPT',u:'$',col:'var(--dim)'},
+  wti:{n:'Petróleo WTI',t:'csv',id:'wti-daily',u:'US$',col:'var(--dim)'},
+  brent:{n:'Petróleo Brent',t:'csv',id:'brent-daily',u:'US$',col:'var(--dim)'},
+  xrp:{n:'XRP (CLP)',t:'bin',sym:'XRPUSDT',code:'XRP',u:'$',col:'var(--blue)'},
+  bnb:{n:'BNB (CLP)',t:'bin',sym:'BNBUSDT',code:'BNB',u:'$',col:'var(--orange)'}
 };
-const RANGES=[['1M',30],['3M',90],['6M',180],['1A',365],['Máx',3650]];
+const RANGES=[['1M',30],['3M',90],['6M',180],['1A',365],['2A',730]];
 
 /* ---------- estado ---------- */
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
@@ -227,7 +266,7 @@ let sel=LS.get('sel',['USD','EUR','UF','UTM','BTC','ETH','ARS','BRL','PEN','GBP'
 let base=LS.get('base','CLP');
 // Orden de las tarjetas superiores; "Tarjetas" en Ajustes decide cuántas se muestran.
 let cardsSel=LS.get('cards2',['uf','dolar','bitcoin','ethereum','euro','oro','libra_cobre','utm']);
-let cfg=Object.assign({theme:'oscuro',dec:'auto',ncards:4,edit:0},LS.get('cfg',{}));
+let cfg=Object.assign({theme:'oscuro',dec:'auto',ncards:4,edit:0,showsym:1,bold:0,zoom:100},LS.get('cfg',{}));
 let hInd=LS.get('hind','dolar'), hDays=LS.get('hdays',90), hData=null;
 let cpA=LS.get('cpa','USD'), cpB=LS.get('cpb','CLP'), cpDays=LS.get('cpdays',90), cpData=null;
 const hCache={}, pairCache={};
@@ -239,9 +278,18 @@ const el=id=>document.getElementById(id);
 const flag=c=>XFLAG[c]||String.fromCodePoint(...[...c.slice(0,2)].map(x=>0x1F1A5+x.charCodeAt(0)));
 const name=c=>{if(LOCAL[c])return LOCAL[c];try{return NM.of(c)}catch(e){return c}};
 const autoDec=v=>{v=Math.abs(v);return v>=1000?0:v>=1?2:v>=.01?4:8};
-const DEC=v=>cfg.dec==='auto'?autoDec(v):+cfg.dec;
+const DEC=v=>cfg.dec==='auto'?autoDec(v):cfg.dec==='max'?12:+cfg.dec;
 const fmt=(v,d)=>v.toLocaleString('es-CL',{minimumFractionDigits:Math.min(d,2),maximumFractionDigits:d});
 const money=v=>v.toLocaleString('es-CL',{maximumFractionDigits:Math.abs(v)>=1000?0:2});
+// Simbolo que antecede al monto: US$, $, €, £… Lo entrega el propio sistema para cada moneda.
+const SYMCACHE={CLP:'$',USD:'US$',XAU:'oz',XAG:'oz',XPT:'oz',WTI:'US$',BRENT:'US$',CU:'US$',UF:'UF',UTM:'UTM'};
+function sym(c){
+  if(SYMCACHE[c]!==undefined)return SYMCACHE[c];
+  let s=c;
+  try{s=(0).toLocaleString('es-CL',{style:'currency',currency:c,currencyDisplay:'narrowSymbol'}).replace(/[\d.,\s]/g,'')||c}
+  catch(e){s=CRYPTO[c]?c:c}
+  return SYMCACHE[c]=s;
+}
 const num=e=>parseFloat((e.value||'').replace(/\./g,'').replace(',','.'));
 const dayfmt=d=>d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'2-digit'});
 
@@ -257,7 +305,7 @@ function cards(){
 }
 // Cada indicador con un equivalente en R (CLP por unidad) toma el valor de ahí; el resto, de su serie.
 const IND_CODE={dolar:'USD',uf:'UF',utm:'UTM',euro:'EUR',oro:'XAU',plata:'XAG',platino:'XPT',
-  bitcoin:'BTC',ethereum:'ETH',solana:'SOL'};
+  bitcoin:'BTC',ethereum:'ETH',solana:'SOL',xrp:'XRP',bnb:'BNB',wti:'WTI',brent:'BRENT',libra_cobre:'CU'};
 function indValue(k){
   const c=IND_CODE[k];
   if(c&&R[c]!=null)return R[c];
@@ -277,6 +325,7 @@ function rows(){
   el('list').innerHTML=sel.filter(c=>R[c]).map((c,i)=>
     `<div class="r${cfg.edit?' edit':''}"><span class="fl">${flag(c)}</span>
       <span class="id"><span class="cd">${c}</span><span class="nm">${name(c)}</span></span>
+      ${+cfg.showsym?`<span class="sg">${sym(c)}</span>`:''}
       <input class="vl" id="v${c}" inputmode="decimal" enterkeyhint="done" oninput="calc('${c}')" onfocus="this.select()">
       ${cfg.edit?`<button class="mv" onclick="mv('${c}',-1)">↑</button><button class="mv" onclick="mv('${c}',1)">↓</button>`:''}
       <button class="mv" onclick="rm('${c}')">×</button></div>`).join('');
@@ -299,6 +348,7 @@ function calc(src){
 }
 function fillPick(){
   el('base').innerHTML=flag(base)+' '+base;
+  el('basesym').textContent=+cfg.showsym?sym(base):'';
   el('cpa').innerHTML=flag(cpA)+' '+cpA;
   el('cpb').innerHTML=flag(cpB)+' '+cpB;
   el('cpname').textContent=cpA+' → '+cpB;
@@ -359,6 +409,19 @@ function hchips(){
 function setInd(k){hInd=k;LS.set('hind',k);hchips();cards();hist()}
 function setRange(d){hDays=d;LS.set('hdays',d);hchips();hist()}
 
+// Velas diarias de Binance: precio de cierre en dolares, hasta 1000 dias (2,7 años).
+async function klines(sym,days){
+  const n=Math.min(Math.max(days+5,60),1000);
+  const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1d&limit=${n}`).then(r=>r.json());
+  return Array.isArray(r)?r.map(v=>[v[0],parseFloat(v[4])]):[];
+}
+// Petroleo: serie diaria de la EIA publicada como CSV (fecha,precio).
+async function csvSerie(id){
+  const t=await fetch(`https://raw.githubusercontent.com/datasets/oil-prices/main/data/${id}.csv`).then(r=>r.text());
+  return t.trim().split('\n').slice(1).map(l=>l.split(',')).filter(c=>c.length>1&&+c[1])
+          .map(c=>[+new Date(c[0]+'T12:00:00Z'),+c[1]]);
+}
+
 // serie embebida en el archivo (siempre disponible, sin red)
 const embedded=k=>HIST[k]?HIST[k].map(p=>[p[0]*864e5,p[1]]):null;
 
@@ -374,9 +437,16 @@ async function serie(k,days){
       const yr=new Date().getFullYear(), yrs=days>365?[yr-2,yr-1,yr]:[yr-1,yr];
       const res=await Promise.all(yrs.map(y=>fetch(`https://mindicador.cl/api/${k}/${y}`).then(r=>r.json()).catch(()=>null)));
       res.filter(Boolean).forEach(r=>(r.serie||[]).forEach(p=>s.push([+new Date(p.fecha),p.valor])));
+    }else if(i.t==='bin'){
+      s=await klines(i.sym,days);                       // exchange: hasta 1000 dias
+      const u=R.USD||1; s=s.map(p=>[p[0],p[1]*u]);      // a pesos con el dolar de la app
+    }else if(i.t==='csv'){
+      s=await csvSerie(i.id);
     }else{
-      const r=await fetch(`https://api.coingecko.com/api/v3/coins/${i.id}/market_chart?vs_currency=clp&days=${days>365?'max':365}&interval=daily`).then(r=>r.json());
-      s=(r.prices||[]).map(p=>[p[0],p[1]]);
+      const b=BIN(IND_CODE[k]||'');
+      if(b){const u=R.USD||1;s=(await klines(b,days)).map(p=>[p[0],p[1]*u])}
+      else{const r=await fetch(`https://api.coingecko.com/api/v3/coins/${i.id}/market_chart?vs_currency=clp&days=365&interval=daily`).then(r=>r.json());
+        s=(r.prices||[]).map(p=>[p[0],p[1]]);}
     }
   }catch(e){s=[]}
   if(!s.length)return hCache[key]=embedded(k)||[];   // sin red: gráfico con lo embebido
@@ -453,9 +523,10 @@ crosshair('chart2',()=>cpData,draw2);
 // Series históricas gratuitas: fiat del BCE (frankfurter), CLP (mindicador), cripto y oro (CoinGecko).
 const FIAT_HIST=['USD','EUR','JPY','GBP','CHF','AUD','CAD','NZD','SEK','NOK','DKK','PLN','CZK','HUF','RON',
   'BGN','ISK','TRY','ILS','INR','KRW','CNY','HKD','SGD','MYR','THB','IDR','PHP','ZAR','BRL','MXN'];
-const PAIR_CG={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',
-  BNB:'binancecoin',USDT:'tether',XAU:'tether-gold'};
-const PAIROK=c=>c==='CLP'||FIAT_HIST.includes(c)||!!PAIR_CG[c];
+// Monedas sin serie del BCE: se reconstruyen con el precio de una stablecoin en esa moneda (1 año).
+const FIAT_CG=['ARS','CLP','COP','PEN','UYU','BOB','PYG','VES','CRC','GTQ','DOP','NGN','KES','PKR','BDT','VND','EGP','AED','SAR','TWD','UAH','RUB'];
+const PAIROK=c=>c==='CLP'||FIAT_HIST.includes(c)||FIAT_CG.includes(c)||!!BIN(c)||c==='XAU'||COMMOD[c];
+const MAXDIAS=c=>FIAT_CG.includes(c)&&c!=='CLP'?365:730;   // tope segun la fuente
 const dayKey=t=>Math.round(t/864e5);
 
 // Cuántos USD vale 1 unidad de <code>, día a día.
@@ -467,12 +538,19 @@ async function usdSerie(code,days){
   if(code==='USD'){
     for(let d=0;d<=days;d++)m.set(dayKey(Date.now()-d*864e5),1);
   }else if(code==='CLP'){
-    const yr=new Date().getFullYear(), yrs=days>365?[yr-1,yr]:[yr];
+    const yr=new Date().getFullYear(), yrs=days>365?[yr-2,yr-1,yr]:[yr-1,yr];
     const res=await Promise.all(yrs.map(y=>fetch(`https://mindicador.cl/api/dolar/${y}`).then(r=>r.json()).catch(()=>null)));
     res.filter(Boolean).forEach(r=>(r.serie||[]).forEach(p=>m.set(dayKey(+new Date(p.fecha)),1/p.valor)));
-  }else if(PAIR_CG[code]){
-    const r=await fetch(`https://api.coingecko.com/api/v3/coins/${PAIR_CG[code]}/market_chart?vs_currency=usd&days=${Math.min(days,365)}&interval=daily`).then(r=>r.json());
-    (r.prices||[]).forEach(p=>m.set(dayKey(p[0]),p[1]));
+  }else if(BIN(code)){
+    (await klines(BIN(code),days)).forEach(p=>m.set(dayKey(p[0]),p[1]));
+  }else if(code==='XAU'){
+    (await klines('PAXGUSDT',days)).forEach(p=>m.set(dayKey(p[0]),p[1]));   // PAX Gold sigue la onza
+  }else if(COMMOD[code]){
+    (await csvSerie(COMMOD[code][1])).forEach(p=>m.set(dayKey(p[0]),p[1]));
+  }else if(FIAT_CG.includes(code)){
+    // Precio de USDT en esa moneda = cuantas unidades por dolar; se invierte.
+    const r=await fetch(`https://api.coingecko.com/api/v3/coins/tether/market_chart?vs_currency=${code.toLowerCase()}&days=${Math.min(days,365)}&interval=daily`).then(r=>r.json());
+    (r.prices||[]).forEach(p=>{if(p[1])m.set(dayKey(p[0]),1/p[1])});
   }else{
     // frankfurter.dev es el dominio que responde con CORS; el .app falla desde el navegador
     const r=await fetch(`https://api.frankfurter.dev/v1/${desde}..?base=USD&symbols=${code}`).then(r=>r.json());
@@ -485,9 +563,11 @@ async function usdSerie(code,days){
 let cpMsg='';
 async function compare(){
   cpMsg='';cpData=null;draw2(null);
-  el('cprange').innerHTML=RANGES.filter(r=>r[1]<=365).map(([t,d])=>
+  const tope=Math.min(MAXDIAS(cpA),MAXDIAS(cpB));
+  el('cprange').innerHTML=RANGES.filter(r=>r[1]<=tope).map(([t,d])=>
     `<button class="chip${d===cpDays?' on':''}" onclick="setCp(${d})">${t}</button>`).join('');
   if(cpA===cpB){cpMsg='Elige dos distintas';return draw2(null)}
+  if(cpDays>tope){cpDays=tope;LS.set('cpdays',tope)}
   try{
     const [A,B]=await Promise.all([usdSerie(cpA,cpDays),usdSerie(cpB,cpDays)]);
     const s=[];
@@ -506,12 +586,16 @@ function applyCfg(){
   const t=cfg.theme==='auto'?(matchMedia('(prefers-color-scheme: light)').matches?'claro':'oscuro'):cfg.theme;
   document.documentElement.dataset.t=t;
   el('theme').value=cfg.theme;el('dec').value=cfg.dec;el('ncards').value=cfg.ncards;el('editm').value=cfg.edit;
+  el('showsym').value=cfg.showsym;el('bold').value=cfg.bold;el('zoom').value=cfg.zoom;
+  document.body.style.fontWeight=+cfg.bold?'600':'';
+  document.body.style.zoom=(+cfg.zoom||100)/100;
   LS.set('cfg',cfg);cards();rows();
 }
 el('cfgb').onclick=()=>el('cfg').classList.toggle('open');
-['theme','dec','ncards','editm'].forEach(id=>el(id).addEventListener('change',e=>{
-  cfg[id==='ncards'?'ncards':id==='editm'?'edit':id]=id==='ncards'||id==='editm'?+e.target.value:e.target.value;
-  applyCfg()}));
+[['theme','theme'],['dec','dec'],['ncards','ncards'],['editm','edit'],['showsym','showsym'],['bold','bold'],['zoom','zoom']]
+ .forEach(([id,k])=>el(id).addEventListener('change',e=>{
+   cfg[k]=(k==='theme'||k==='dec')?e.target.value:+e.target.value;
+   applyCfg()}));
 function reset(){try{localStorage.clear()}catch(e){}location.reload()}
 
 /* ---------- eventos ---------- */
@@ -519,6 +603,51 @@ el('amt').value=LS.get('amt','1.000');
 el('amt').addEventListener('input',()=>calc(base));
 el('amt').addEventListener('focus',e=>e.target.select());
 el('rf').onclick=()=>load(1);
+/* ---------- calculadora: operaciones, porcentajes y memoria ---------- */
+// Acepta expresiones escritas (1000+250*2) y las teclas de abajo.
+// El % sigue la convención de las calculadoras: 200+10% = 220, 200-10% = 180, 200*10% = 20.
+function evalExpr(txt){
+  let s=String(txt).replace(/\s/g,'').replace(/×/g,'*').replace(/÷/g,'/');
+  s=s.replace(/\./g,'').replace(/,/g,'.');            // formato chileno: . miles, , decimales
+  if(!s)return null;
+  if(!/^[-+*/().%0-9]+$/.test(s))return NaN;
+  s=s.replace(/([\d.]+)([+-])([\d.]+)%/g,(m,a,op,b)=>`${a}*(1${op}${b}/100)`);  // 200+10% -> 220
+  s=s.replace(/([\d.]+)%/g,(m,a)=>`(${a}/100)`);                                 // 10% -> 0,1
+  try{const v=Function('"use strict";return('+s+')')();return isFinite(v)?v:NaN}catch(e){return NaN}
+}
+function pulsa(t){
+  const a=el('amt');
+  if(t==='C'){a.value='';calc(base);return nota('')}
+  if(t==='⌫'){a.value=a.value.slice(0,-1);return}
+  if(t==='='){
+    const v=evalExpr(a.value);
+    if(v==null||isNaN(v))return nota('Expresión no válida');
+    a.value=fmt(v,DEC(v));calc(base);return nota('')
+  }
+  if(t==='MC'){mem=0;LS.set('mem',0);return memBtn()}
+  if(t==='MR'){a.value=fmt(mem,DEC(mem));calc(base);return}
+  if(t==='M+'||t==='M−'){
+    const v=evalExpr(a.value)||0;
+    mem=t==='M+'?mem+v:mem-v;LS.set('mem',mem);return memBtn()
+  }
+  a.value+=t;                       // operadores y %
+  nota('');
+}
+let mem=LS.get('mem',0);
+const nota=s=>{el('calcnote').textContent=s};
+function memBtn(){
+  const b=el('keys').querySelector('[data-k="MR"]');
+  if(b)b.classList.toggle('on',!!mem);
+  nota(mem?'Memoria: '+fmt(mem,DEC(mem)):'');
+}
+el('keys').innerHTML=['C','⌫','%','÷','×','−','7','8','9','+','(',')','MC','MR','M+','M−','1','='].length?
+  [['C','op'],['⌫','op'],['(','op'],[')','op'],['%','op'],['÷','op'],
+   ['×','op'],['−','op'],['+','op'],['MC','mem'],['MR','mem'],['M+','mem'],
+   ['M−','mem'],['=','eq']].map(([k,c])=>
+   `<button class="${c}" data-k="${k}" onclick="pulsa('${k==='−'?'-':k==='×'?'*':k==='÷'?'/':k}')">${k}</button>`).join(''):'';
+el('amt').addEventListener('keydown',e=>{if(e.key==='Enter')pulsa('=')});
+memBtn();
+
 // montos rápidos, para no tener que teclear
 el('quick').innerHTML=[1,10,100,1000,10000,100000].map(n=>
   `<button class="chip" onclick="setAmt(${n})">${n.toLocaleString('es-CL')}</button>`).join('');
@@ -539,7 +668,7 @@ async function load(force){
       get('https://mindicador.cl/api').catch(()=>null),
       // Cripto SIEMPRE en dólares: convertir con el mismo dólar de la app evita el desfase
       // que aparecía al tomar el precio ya convertido a pesos por CoinGecko (su dólar es otro).
-      get('https://api.coingecko.com/api/v3/simple/price?ids='+Object.values(CRYPTO).join(',')+'&vs_currencies=usd').catch(()=>({})),
+      get('https://api.coingecko.com/api/v3/simple/price?ids='+Object.keys(CRYPTO).map(CG_ID).join(',')+'&vs_currencies=usd').catch(()=>({})),
       get('https://api.binance.com/api/v3/ticker/price?symbols=["BTCUSDT","ETHUSDT"]').catch(()=>null),
       ...Object.keys(METAL).map(s=>get('https://api.gold-api.com/price/'+s).catch(()=>null))
     ]);
@@ -550,12 +679,16 @@ async function load(force){
     // Dólar, euro, UF y UTM vienen del Banco Central: son las cifras oficiales en Chile.
     if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.USD=usd;rates.EUR=ind.euro.valor}
     USD_PRICE={};
-    for(const k in CRYPTO)if(ck[CRYPTO[k]]&&ck[CRYPTO[k]].usd)USD_PRICE[k]=ck[CRYPTO[k]].usd;
+    for(const k in CRYPTO)if(ck[CG_ID(k)]&&ck[CG_ID(k)].usd)USD_PRICE[k]=ck[CG_ID(k)].usd;
     // Binance como contraste: si CoinGecko se desvía más de 1%, mandan los datos del exchange.
     if(Array.isArray(bin))bin.forEach(b=>{const k=b.symbol==='BTCUSDT'?'BTC':b.symbol==='ETHUSDT'?'ETH':null;
       const p=parseFloat(b.price);
       if(k&&p&&(!USD_PRICE[k]||Math.abs(p/USD_PRICE[k]-1)>0.01))USD_PRICE[k]=p});
     Object.keys(METAL).forEach((s,i)=>{const m=mt[i];if(m&&m.price)USD_PRICE[s]=m.price});
+    if(ind&&ind.libra_cobre)USD_PRICE.CU=ind.libra_cobre.valor;          // cobre: dolares por libra
+    await Promise.all(Object.keys(COMMOD).map(async c=>{                  // petroleo: ultimo dato del CSV
+      try{const s=await csvSerie(COMMOD[c][1]);if(s.length)USD_PRICE[c]=s[s.length-1][1]}catch(e){}
+    }));
     for(const k in USD_PRICE)rates[k]=USD_PRICE[k]*usd;
     const t=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
     apply(rates,'Actualizado: '+t);
