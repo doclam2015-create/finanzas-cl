@@ -128,6 +128,8 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
     <select id="ncards"><option value="2">2</option><option value="4">4</option><option value="6">6</option><option value="8">8</option></select></div>
   <div class="cfgrow"><span>Reordenar monedas</span>
     <select id="editm"><option value="0">Off</option><option value="1">On</option></select></div>
+  <div class="cfgrow"><span>Monedas de América <small id="amsg" class="mini"></small></span>
+    <button class="chip" onclick="addAmerica()">Agregar todas</button></div>
   <div class="cfgrow"><span>Restablecer todo</span><button class="chip" onclick="reset()">Borrar ajustes</button></div>
   <div class="mini" style="text-align:left;line-height:1.6">
     <b>Fuentes</b> (todas gratuitas y verificables)<br>
@@ -232,6 +234,17 @@ const LOCAL={UF:'Unidad de Fomento',UTM:'Unidad Tributaria Mensual',CLF:'UF (ín
   NEAR:'NEAR Protocol',APT:'Aptos',ARB:'Arbitrum',OP:'Optimism',SUI:'Sui',HBAR:'Hedera',
   ICP:'Internet Computer',FIL:'Filecoin',AAVE:'Aave',ETC:'Ethereum Classic',USDC:'USD Coin'};
 
+// Monedas de América (las que entrega la fuente de cambio). Un toque las agrega todas al listado.
+const AMERICA=['ARS','BOB','BRL','CAD','CLP','COP','CRC','CUP','DOP','GTQ','GYD','HNL','HTG','JMD',
+ 'MXN','NIO','PAB','PEN','PYG','SRD','TTD','USD','UYU','VES','BZD','BSD','BBD','XCD','AWG','ANG',
+ 'XCG','KYD','BMD','FKP'];
+function addAmerica(){
+  let n=0;
+  AMERICA.forEach(c=>{if(R[c]&&c!==base&&!sel.includes(c)){sel.push(c);n++}});
+  LS.set('sel',sel); rows();
+  el('amsg').textContent=n?'+'+n+' agregadas':'ya estaban todas';
+}
+
 // Indicadores con historial. tipo: mind = mindicador.cl, cg = CoinGecko
 const IND={
   dolar:{n:'Dólar observado',t:'mind',u:'$',col:'var(--green)'},
@@ -262,7 +275,7 @@ const RANGES=[['1M',30],['3M',90],['6M',180],['1A',365],['2A',730]];
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
           set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let R=SNAP;
-let sel=LS.get('sel',['USD','EUR','UF','UTM','BTC','ETH','ARS','BRL','PEN','GBP']);
+let sel=LS.get('sel',['USD','EUR','UF','UTM','BTC','ETH','ARS','BRL','PEN','MXN','COP','UYU','BOB','PYG','CAD','GBP']);
 let base=LS.get('base','CLP');
 // Orden de las tarjetas superiores; "Tarjetas" en Ajustes decide cuántas se muestran.
 let cardsSel=LS.get('cards2',['uf','dolar','bitcoin','ethereum','euro','oro','libra_cobre','utm']);
