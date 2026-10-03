@@ -103,6 +103,15 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 .two{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 .two .pill{flex:1}
 .two .sw{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card2);color:var(--blue);font-size:17px}
+.fld{width:100%;box-sizing:border-box;background:var(--card2);border:0;color:var(--txt);font-size:17px;font-weight:600;padding:11px 12px;border-radius:12px;outline:none;-webkit-appearance:none;margin-bottom:10px}
+.frow{display:flex;gap:8px}.frow>*{flex:1;min-width:0}
+.flab{font-size:11px;color:var(--dim);font-weight:700;margin:0 0 4px 2px;display:block}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl td,.tbl th{padding:8px 2px;border-top:1px solid var(--line);text-align:right}
+.tbl th{font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.tbl td:first-child,.tbl th:first-child{text-align:left}
+.tbl tr.tot td{font-weight:700;font-size:16px}
+#tool .big{font-size:28px;font-weight:700;margin-top:4px}
 </style>
 </head>
 <body>
@@ -184,6 +193,12 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
   <div class="mini">Escribe en cualquier fila: la conversión va en los dos sentidos.</div>
 </div>
 
+<div class="panel">
+  <p class="ttl"><span>🧮 Herramientas</span></p>
+  <div class="chips" id="tsel"></div>
+  <div id="tool"></div>
+</div>
+
 <div id="sheet">
   <header><h2 id="sheetTitle">Seleccionar una moneda</h2>
     <button class="ic" onclick="closeSheet()">✕</button></header>
@@ -204,7 +219,7 @@ const SNAPDATE="14-08-2026";
 
 const NM=new Intl.DisplayNames(['es'],{type:'currency'});
 const XFLAG={EUR:'🇪🇺',XAF:'🌍',XOF:'🌍',XPF:'🌏',XCD:'🌎',XCG:'🌎',XDR:'🏳️',ANG:'🇨🇼',CLF:'🇨🇱',
-  BTC:'₿',ETH:'Ξ',USDT:'₮',BNB:'🔶',SOL:'◎',XRP:'✕',ADA:'₳',DOGE:'🐕',UF:'🇨🇱',UTM:'🇨🇱',
+  BTC:'₿',ETH:'Ξ',USDT:'₮',BNB:'🔶',SOL:'◎',XRP:'✕',ADA:'₳',DOGE:'🐕',UF:'🇨🇱',UTM:'🇨🇱',UTA:'🇨🇱',
   XAU:'🥇',XAG:'🥈',XPT:'⚪',WTI:'🛢',BRENT:'🛢',CU:'🟠',
   TRX:'◈',LINK:'⬡',AVAX:'▲',DOT:'●',LTC:'Ł',BCH:'Ƀ',XLM:'✶',XMR:'ɱ',TON:'💎',SHIB:'🐕',
   PEPE:'🐸',UNI:'🦄',ATOM:'⚛',NEAR:'◇',APT:'🅰',ARB:'🔵',OP:'🔴',SUI:'💧',HBAR:'ℏ',
@@ -223,7 +238,7 @@ const CG_ID=k=>CRYPTO[k][0], BIN=k=>CRYPTO[k]&&CRYPTO[k][1];
 const COMMOD={WTI:['Petroleo WTI','wti-daily'],BRENT:['Petroleo Brent','brent-daily']};
 // Metales al contado (onza troy) desde gold-api.com, sin clave.
 const METAL={XAU:'Oro',XAG:'Plata',XPT:'Platino'};
-const LOCAL={UF:'Unidad de Fomento',UTM:'Unidad Tributaria Mensual',CLF:'UF (índice)',
+const LOCAL={UF:'Unidad de Fomento',UTM:'Unidad Tributaria Mensual',UTA:'Unidad Tributaria Anual',CLF:'UF (índice)',
   BTC:'Bitcoin',ETH:'Ethereum',USDT:'Tether',BNB:'BNB',SOL:'Solana',XRP:'XRP',ADA:'Cardano',DOGE:'Dogecoin',
   FOK:'Corona feroesa',GGP:'Libra de Guernsey',IMP:'Libra de Man',JEP:'Libra de Jersey',
   KID:'Dólar de Kiribati',TVD:'Dólar de Tuvalu',
@@ -274,6 +289,7 @@ const RANGES=[['1M',30],['3M',90],['6M',180],['1A',365],['2A',730]];
 /* ---------- estado ---------- */
 const LS={get:(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
           set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+SNAP.UTA=SNAP.UTM*12;   // UTA = 12 UTM (SII)
 let R=SNAP;
 let sel=LS.get('sel',['USD','EUR','UF','UTM','BTC','ETH','ARS','BRL','PEN','MXN','COP','UYU','BOB','PYG','CAD','GBP']);
 let base=LS.get('base','CLP');
@@ -295,7 +311,7 @@ const DEC=v=>cfg.dec==='auto'?autoDec(v):cfg.dec==='max'?12:+cfg.dec;
 const fmt=(v,d)=>v.toLocaleString('es-CL',{minimumFractionDigits:Math.min(d,2),maximumFractionDigits:d});
 const money=v=>v.toLocaleString('es-CL',{maximumFractionDigits:Math.abs(v)>=1000?0:2});
 // Simbolo que antecede al monto: US$, $, €, £… Lo entrega el propio sistema para cada moneda.
-const SYMCACHE={CLP:'$',USD:'US$',XAU:'oz',XAG:'oz',XPT:'oz',WTI:'US$',BRENT:'US$',CU:'US$',UF:'UF',UTM:'UTM'};
+const SYMCACHE={CLP:'$',USD:'US$',XAU:'oz',XAG:'oz',XPT:'oz',WTI:'US$',BRENT:'US$',CU:'US$',UF:'UF',UTM:'UTM',UTA:'UTA'};
 function sym(c){
   if(SYMCACHE[c]!==undefined)return SYMCACHE[c];
   let s=c;
@@ -365,6 +381,7 @@ function fillPick(){
   el('cpa').innerHTML=flag(cpA)+' '+cpA;
   el('cpb').innerHTML=flag(cpB)+' '+cpB;
   el('cpname').textContent=cpA+' → '+cpB;
+  if(['oro','utm','tabla'].includes(tool))tools();
 }
 
 /* ---------- buscador de monedas (hoja con filtro por nombre) ---------- */
@@ -666,6 +683,126 @@ el('quick').innerHTML=[1,10,100,1000,10000,100000].map(n=>
   `<button class="chip" onclick="setAmt(${n})">${n.toLocaleString('es-CL')}</button>`).join('');
 function setAmt(n){el('amt').value=n.toLocaleString('es-CL');calc(base)}
 
+/* ---------- herramientas: IVA, reajuste IPC, oro por quilate, UTM/UTA, tabla de montos ---------- */
+const TOOLS=[['iva','IVA'],['ipc','Reajuste IPC'],['oro','Oro por quilate'],['utm','UTM y UTA'],['tabla','Tabla de montos']];
+let tool=LS.get('tool','iva'), ivaMode='neto', oroG='1', oroK=24;
+const numv=s=>{const v=parseFloat(String(s).replace(/\./g,'').replace(',','.'));return isFinite(v)?v:0};
+const clp=v=>'$'+Math.round(v).toLocaleString('es-CL');
+const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const ym=(y,m)=>{const d=new Date(Date.UTC(y,m,1));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')};
+function setTool(k){tool=k;LS.set('tool',k);tools()}
+function tools(){
+  el('tsel').innerHTML=TOOLS.map(([k,t])=>`<button class="chip${k===tool?' on':''}" onclick="setTool('${k}')">${t}</button>`).join('');
+  ({iva:ivaUI,ipc:ipcUI,oro:oroUI,utm:utmUI,tabla:tablaUI})[tool]();
+}
+
+// IVA 19%: desde el neto se suma, desde el bruto se desglosa.
+function ivaUI(){
+  const v=el('ivaIn')?el('ivaIn').value:'';
+  el('tool').innerHTML=`<div class="chips">
+    <button class="chip${ivaMode==='neto'?' on':''}" onclick="ivaMode='neto';ivaUI()">Tengo el neto</button>
+    <button class="chip${ivaMode==='bruto'?' on':''}" onclick="ivaMode='bruto';ivaUI()">Tengo el bruto</button></div>
+    <input class="fld" id="ivaIn" inputmode="decimal" placeholder="Monto en pesos" value="${v}" oninput="ivaCalc()">
+    <table class="tbl" id="ivaOut"></table>`;
+  ivaCalc();
+}
+function ivaCalc(){
+  const v=numv(el('ivaIn').value), neto=ivaMode==='neto'?v:v/1.19, iva=neto*.19;
+  el('ivaOut').innerHTML=`<tr><td>Valor neto</td><td>${clp(neto)}</td></tr>
+    <tr><td>IVA (19%)</td><td>${clp(iva)}</td></tr><tr class="tot"><td>Total (bruto)</td><td>${clp(neto+iva)}</td></tr>`;
+}
+
+// IPC mensual derivado de la UF: entre el 10 de un mes y el 9 del siguiente la UF crece según el IPC
+// de dos meses atrás, así que IPC(m) = UF(9 de m+2) / UF(9 de m+1) − 1. Calza al 0,1% con el INE,
+// y sigue al día aunque mindicador.cl dejó de publicar la serie del IPC.
+const UFY={};
+function ufYear(y){
+  return UFY[y]||(UFY[y]=fetch(`https://mindicador.cl/api/uf/${y}`).then(r=>r.json())
+    .then(r=>new Map((r.serie||[]).map(p=>[p.fecha.slice(0,10),p.valor])))
+    .catch(()=>{delete UFY[y];return new Map()}));
+}
+async function ufOn(y,m){const d=new Date(Date.UTC(y,m,9));return (await ufYear(d.getUTCFullYear())).get(d.toISOString().slice(0,10))}
+async function ipcMes(y,m){const a=await ufOn(y,m+1),b=await ufOn(y,m+2);return a&&b?Math.round((b/a-1)*1000)/10:null}
+let ipcLast=null;
+async function ipcUltimo(){
+  if(ipcLast)return ipcLast;
+  const n=new Date();
+  for(let k=1;k<5;k++){const y=n.getFullYear(),m=n.getMonth()-k,v=await ipcMes(y,m);
+    if(v!=null)return ipcLast={k:ym(y,m),v}}
+  return null;
+}
+function ipcUI(){
+  el('tool').innerHTML=`<label class="flab">Monto en pesos</label>
+    <input class="fld" id="ipcM" inputmode="decimal" placeholder="Monto" value="100.000" oninput="ipcCalc()">
+    <div class="frow"><div><label class="flab">Desde</label><input class="fld" type="month" id="ipcA" min="1990-01" onchange="ipcCalc()"></div>
+    <div><label class="flab">Hasta</label><input class="fld" type="month" id="ipcB" min="1990-01" onchange="ipcCalc()"></div></div>
+    <div class="big" id="ipcR">—</div><div class="sub" id="ipcV"></div>
+    <div class="mini" id="ipcN" style="text-align:left;margin-top:8px">Calculando último IPC…</div>`;
+  ipcUltimo().then(u=>{
+    if(!u){el('ipcN').textContent='Sin conexión: el reajuste necesita la serie de la UF.';return}
+    const [y,m]=u.k.split('-').map(Number);
+    el('ipcB').value=el('ipcB').max=el('ipcA').max=u.k; el('ipcA').value=ym(y-1,m-1);
+    el('ipcN').textContent=`Último IPC: ${MES[m-1]} ${y}, ${u.v.toLocaleString('es-CL')}%. Fuente: Banco Central vía la variación de la UF.`;
+    ipcCalc();
+  });
+}
+async function ipcCalc(){
+  const A=el('ipcA').value,B=el('ipcB').value,M=numv(el('ipcM').value);
+  if(!A||!B)return;
+  const [ya,ma]=A.split('-').map(Number),[yb,mb]=B.split('-').map(Number);
+  let i0=ya*12+ma-1,i1=yb*12+mb-1;const inv=i0>i1;if(inv)[i0,i1]=[i1,i0];
+  el('ipcR').textContent='…';
+  const yrs=[];for(let y=Math.floor(i0/12);y<=Math.floor(i1/12)+1;y++)yrs.push(y);
+  await Promise.all(yrs.map(ufYear));
+  let f=1;
+  for(let i=i0+1;i<=i1;i++){const v=await ipcMes(Math.floor(i/12),i%12);
+    if(v==null){el('ipcR').textContent='—';el('ipcV').textContent=`IPC de ${MES[i%12]} ${Math.floor(i/12)} aún no disponible`;return}
+    f*=1+v/100}
+  if(inv)f=1/f;
+  el('ipcR').textContent=clp(M*f);
+  el('ipcV').textContent=`Variación IPC ${((f-1)*100).toLocaleString('es-CL',{maximumFractionDigits:1})}% · factor ${f.toLocaleString('es-CL',{maximumFractionDigits:4})}`;
+}
+
+// Oro por gramo y quilate a partir de la onza troy al contado.
+const OZ=31.1034768, KILATES=[24,22,21.6,18,14,12,10,9,8];
+function oroUI(){
+  const oz=R.XAU;
+  if(!oz){el('tool').innerHTML='<div class="mini">Cargando precio del oro…</div>';return}
+  const g=oz/OZ;
+  el('tool').innerHTML=`<table class="tbl"><tr><th>Quilates</th><th>Pureza</th><th>CLP / gramo</th></tr>
+    ${KILATES.map(k=>`<tr><td>${k.toLocaleString('es-CL')}K</td><td>${(k/24*1000).toFixed(0)}‰</td><td>${clp(g*k/24)}</td></tr>`).join('')}
+    <tr><td>Onza troy 24K</td><td>31,1 g</td><td>${clp(oz)}</td></tr><tr><td>Kilo 24K</td><td>1000 g</td><td>${clp(g*1000)}</td></tr>
+    ${R.XAG?`<tr><td>Plata pura</td><td>1 g</td><td>${clp(R.XAG/OZ)}</td></tr>`:''}</table>
+    <p class="flab" style="margin-top:14px">¿Cuánto vale mi oro?</p>
+    <div class="frow"><input class="fld" id="oroG" inputmode="decimal" placeholder="Gramos" value="${oroG}" oninput="oroCalc()">
+    <select class="fld" id="oroK" onchange="oroCalc()">${KILATES.map(k=>`<option value="${k}"${k==oroK?' selected':''}>${k.toLocaleString('es-CL')}K</option>`).join('')}</select></div>
+    <div class="big" id="oroR"></div><div class="mini" style="text-align:left">Precio spot (metal puro), no lo que paga una compraventa.</div>`;
+  oroCalc();
+}
+function oroCalc(){oroG=el('oroG').value;oroK=+el('oroK').value;el('oroR').textContent=clp(numv(oroG)*R.XAU/OZ*oroK/24)}
+
+// UTM del mes, UTA (12 UTM) y la serie mes a mes.
+async function utmUI(){
+  const u=R.UTM;
+  el('tool').innerHTML=`<table class="tbl"><tr class="tot"><td>1 UTM</td><td>${clp(u)}</td></tr><tr class="tot"><td>1 UTA</td><td>${clp(u*12)}</td></tr></table>
+    <p class="flab" style="margin-top:14px">Valor mes a mes</p><table class="tbl" id="utmT"><tr><td>Cargando…</td></tr></table>
+    <div class="mini" style="text-align:left">UTA = 12 UTM. La fija el SII según el IPC; UTM y UTA también están en la calculadora.</div>`;
+  const s=(await serie('utm',365)).slice(-13).reverse();
+  if(el('utmT'))el('utmT').innerHTML='<tr><th>Mes</th><th>UTM</th><th>UTA</th></tr>'+s.map(([t,v])=>{const d=new Date(t);
+    return `<tr><td>${MES[d.getMonth()]} ${d.getFullYear()}</td><td>${clp(v)}</td><td>${clp(v*12)}</td></tr>`}).join('');
+}
+
+// Tabla de montos frecuentes para el par del comparador, en los dos sentidos.
+function tablaUI(){
+  const r=R[cpA]/R[cpB], N=[1,5,10,20,50,100,250,500,1000,5000,10000,100000];
+  if(!isFinite(r)){el('tool').innerHTML='<div class="mini">Elige un par en Comparar.</div>';return}
+  const f=v=>fmt(v,DEC(v));
+  el('tool').innerHTML=`<div class="frow"><table class="tbl"><tr><th>${cpA}</th><th>${cpB}</th></tr>
+    ${N.map(n=>`<tr><td>${f(n)}</td><td>${f(n*r)}</td></tr>`).join('')}</table>
+    <table class="tbl"><tr><th>${cpB}</th><th>${cpA}</th></tr>${N.map(n=>`<tr><td>${f(n)}</td><td>${f(n/r)}</td></tr>`).join('')}</table></div>
+    <div class="mini" style="text-align:left">Usa el par de “Comparar”: cámbialo ahí.</div>`;
+}
+
 /* ---------- carga ---------- */
 function apply(rates,when){R=rates;cards();fillPick();rows();el('st').textContent=when}
 
@@ -690,7 +827,7 @@ async function load(force){
     for(const k in fx.rates)rates[k]=usd/fx.rates[k];
     rates.CLP=1;
     // Dólar, euro, UF y UTM vienen del Banco Central: son las cifras oficiales en Chile.
-    if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.USD=usd;rates.EUR=ind.euro.valor}
+    if(ind){rates.UF=ind.uf.valor;rates.UTM=ind.utm.valor;rates.UTA=12*ind.utm.valor;rates.USD=usd;rates.EUR=ind.euro.valor}
     USD_PRICE={};
     for(const k in CRYPTO)if(ck[CG_ID(k)]&&ck[CG_ID(k)].usd)USD_PRICE[k]=ck[CG_ID(k)].usd;
     // Binance como contraste: si CoinGecko se desvía más de 1%, mandan los datos del exchange.
@@ -714,7 +851,7 @@ async function load(force){
 async function cardSeries(){
   for(const k of cardsSel.slice(0,cfg.ncards)){try{await serie(k,365);cards()}catch(e){}}
 }
-hchips();applyCfg();load();hist().then(cardSeries);compare();
+hchips();applyCfg();tools();load();hist().then(cardSeries);compare();
 // refresca al volver a la app
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(1)});
 </script>
