@@ -960,6 +960,7 @@ async function ipcUF(A,B){   // respaldo: producto de las variaciones mensuales 
 }
 const ipcVar=async(A,B)=>A===B?0:(await H(ineVar(A,B)))??await H(ipcUF(A,B));
 tool_('ipc','ind','Reajuste por IPC',()=>F('im','Monto en pesos','100.000')+R2(M('ia','Desde',curYM(-14)),M('ib','Hasta',curYM(-2)))+OUT+
+  '<p class="flab" style="margin-top:14px">Acumulado a la fecha</p><table class="tbl" id="is"></table>'+
   '<p class="flab" style="margin-top:14px">IPC mes a mes</p><table class="tbl" id="it"></table>'+
   NOTE(`Variación oficial del ${L('https://calculadoraipc.ine.cl/','INE')} (su calculadora redondea la variación a un decimal y la aplica al monto). Sin conexión al INE se usa el IPC derivado de la UF del Banco Central. Acumulada: desde diciembre del año anterior; 12 meses: contra el mismo mes del año pasado.`),
 async()=>{
@@ -974,8 +975,14 @@ async()=>{
   const [yu,mu]=u.split('-').map(Number),meses=[];for(let i=0;i<13;i++)meses.push(ym(yu,mu-1-i));
   const rows=await H(Promise.all(meses.map(async k=>{const [y,m]=k.split('-').map(Number);
     const [mm,ac,a12]=await Promise.all([ipcVar(ym(y,m-2),k),ipcVar(ym(y-1,11),k),ipcVar(ym(y-1,m-1),k)]);
-    const p=z=>z==null?'—':nf(z,1)+'%';return [ymTxt(k),p(mm),p(ac),p(a12)]})));
-  el('it').innerHTML=tabla(['Mes','Mensual','Acum. año','12 meses'],rows);
+    return [k,mm,ac,a12]})));
+  const p=z=>z==null?'—':nf(z,1)+'%',delAno=rows.filter(r=>+r[0].slice(0,4)===yu&&r[1]!=null);
+  const suma=delAno.reduce((t,r)=>t+r[1],0),desde=v('ia')>u?u:v('ia');
+  show([['Acumulado '+yu+' (diciembre '+(yu-1)+' a '+MES[mu-1]+')',p(rows[0][2]),'tot'],
+    ['Suma simple de las variaciones mensuales de '+yu,nf(suma,1)+'%'],['Últimos 12 meses (a '+MES[mu-1]+')',p(rows[0][3])],
+    desde<u?['Desde '+ymTxt(desde)+' a hoy',p(await H(ipcVar(desde,u)))]:null],'is');
+  el('is').insertAdjacentHTML('beforeend','<tr><td colspan="2" class="mini" style="text-align:left">El acumulado oficial compone los meses (cada variación se aplica sobre la anterior); la suma simple es solo referencial y difiere levemente.</td></tr>');
+  el('it').innerHTML=tabla(['Mes','Mensual','Acum. año','12 meses'],rows.map(([k,a,b,c])=>[ymTxt(k),p(a),p(b),p(c)]));
 });
 
 // Proyección UTM: tres escenarios con las últimas 12 variaciones
