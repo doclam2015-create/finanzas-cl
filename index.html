@@ -112,6 +112,11 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 .tbl td:first-child,.tbl th:first-child{text-align:left}
 .tbl tr.tot td{font-weight:700;font-size:16px}
 #tool .big{font-size:28px;font-weight:700;margin-top:4px}
+#tsub{font-weight:700;margin-bottom:12px}
+#tool textarea.fld{font-size:14px;font-weight:400;resize:vertical}
+.prow{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;padding:8px 0;border-top:1px solid var(--line)}
+.prow .fld{margin-bottom:6px;font-size:15px}.prow .chip{justify-self:start}.prow small{grid-column:1/-1;font-size:12px;color:var(--dim)}
+#tool details summary{cursor:pointer;color:var(--blue)}
 </style>
 </head>
 <body>
@@ -146,6 +151,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
     · Resto de monedas: exchangerate-api.com · histórico de pares: <b>Banco Central Europeo</b> vía frankfurter.dev<br>
     · Criptomonedas: CoinGecko en dólares, contrastado con <b>Binance</b><br>
     · Oro, plata y platino: gold-api.com (onza troy) · histórico del oro: Tether Gold<br>
+    · IPC: <b>INE</b> (API de su Calculadora IPC) · sueldo mínimo y asignación familiar: <b>Dirección del Trabajo</b> · topes y comisiones AFP: <b>Superintendencia de Pensiones</b> · impuesto único: <b>SII</b><br>
     Todo se convierte a pesos con el dólar observado, así el precio en dólares y en pesos siempre calzan.
   </div>
 </div>
@@ -196,6 +202,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 <div class="panel">
   <p class="ttl"><span>🧮 Herramientas</span></p>
   <div class="chips" id="tsel"></div>
+  <select class="fld" id="tsub" onchange="setTool(this.value)" aria-label="Herramienta"></select>
   <div id="tool"></div>
 </div>
 
@@ -266,7 +273,7 @@ const IND={
   uf:{n:'Unidad de Fomento',t:'mind',u:'$',col:'var(--green)'},
   euro:{n:'Euro',t:'mind',u:'$',col:'var(--blue)'},
   utm:{n:'UTM',t:'mind',u:'$',col:'var(--blue)'},
-  ipc:{n:'IPC mensual',t:'mind',u:'%',col:'var(--orange)'},
+  ipc:{n:'IPC mensual',t:'ipcuf',u:'%',col:'var(--orange)'},   // derivado de la UF: mindicador.cl dejó de publicar el IPC
   imacec:{n:'IMACEC',t:'mind',u:'%',col:'var(--orange)'},
   tpm:{n:'Tasa Política Monetaria',t:'mind',u:'%',col:'var(--purple)'},
   libra_cobre:{n:'Libra de cobre',t:'mind',u:'US$',col:'var(--orange)'},
@@ -381,7 +388,7 @@ function fillPick(){
   el('cpa').innerHTML=flag(cpA)+' '+cpA;
   el('cpb').innerHTML=flag(cpB)+' '+cpB;
   el('cpname').textContent=cpA+' → '+cpB;
-  if(['oro','utm','tabla'].includes(tool))tools();
+  if(typeof TD!=='undefined'&&['oro','plata','metal','oromundo','tabla','utmmes','liquido','bruto'].includes(tool))runTool();
 }
 
 /* ---------- buscador de monedas (hoja con filtro por nombre) ---------- */
@@ -463,7 +470,9 @@ async function serie(k,days){
   const i=IND[k];let s=[];
   if(i.t==='spot')return hCache[key]=[];   // plata y platino: solo precio actual, sin serie gratuita
   try{
-    if(i.t==='mind'){
+    if(i.t==='ipcuf'){
+      s=await ipcSerie(days);
+    }else if(i.t==='mind'){
       const yr=new Date().getFullYear(), yrs=days>365?[yr-2,yr-1,yr]:[yr-1,yr];
       const res=await Promise.all(yrs.map(y=>fetch(`https://mindicador.cl/api/${k}/${y}`).then(r=>r.json()).catch(()=>null)));
       res.filter(Boolean).forEach(r=>(r.serie||[]).forEach(p=>s.push([+new Date(p.fecha),p.valor])));
@@ -606,7 +615,7 @@ async function compare(){
       if(b)s.push([k*864e5,A.get(k)/b]);
     });
     if(s.length<2){cpMsg='Sin datos para ese par';return draw2(null)}
-    cpData=s;draw2(s);
+    cpData=s;draw2(s);if(tool==='tabla')runTool();
   }catch(e){cpMsg='Sin conexión';draw2(null)}
 }
 function setCp(d){cpDays=d;LS.set('cpdays',d);compare()}
@@ -683,125 +692,577 @@ el('quick').innerHTML=[1,10,100,1000,10000,100000].map(n=>
   `<button class="chip" onclick="setAmt(${n})">${n.toLocaleString('es-CL')}</button>`).join('');
 function setAmt(n){el('amt').value=n.toLocaleString('es-CL');calc(base)}
 
-/* ---------- herramientas: IVA, reajuste IPC, oro por quilate, UTM/UTA, tabla de montos ---------- */
-const TOOLS=[['iva','IVA'],['ipc','Reajuste IPC'],['oro','Oro por quilate'],['utm','UTM y UTA'],['tabla','Tabla de montos']];
-let tool=LS.get('tool','iva'), ivaMode='neto', oroG='1', oroK=24;
-const numv=s=>{const v=parseFloat(String(s).replace(/\./g,'').replace(',','.'));return isFinite(v)?v:0};
-const clp=v=>'$'+Math.round(v).toLocaleString('es-CL');
+/* ---------- herramientas ---------- */
+// Parámetros legales 2026. Cada uno con su fuente oficial; revisar cuando cambien por ley.
+const LEY={
+  IMM:553553, IMM18:412938, IMMNR:356815,                 // DT, Ley 21.830 (desde 01-05-2026)
+  TOPE_AFP:90, TOPE_AFC:135.2,                            // Superintendencia de Pensiones, UF (desde feb-2026)
+  AFP:{Uno:.0046,Modelo:.0058,PlanVital:.0116,Habitat:.0127,Capital:.0144,Cuprum:.0144,Provida:.0145}, // SP, % de la remuneración
+  ASIG:[[649039,22601],[947990,13870],[1478539,4382]],    // DT, asignación familiar desde 01-05-2026
+  // Impuesto único de segunda categoría, mensual, en UTM: [desde, factor, rebaja] (SII)
+  IUSC:[[0,0,0],[13.5,.04,.54],[30,.08,1.74],[50,.135,4.49],[70,.23,11.14],[90,.304,17.8],[120,.35,23.32],[310,.4,38.82]],
+  HON:{2025:14.5,2026:15.25,2027:16,2028:17}              // retención boletas de honorarios, Ley 21.133
+};
+const SRC={
+  dt:'https://www.dt.gob.cl/portal/1628/w3-channel.html',
+  sp:'https://www.spensiones.cl/portal/institucional/594/w3-article-16885.html',
+  sii_iusc:'https://www.sii.cl/valores_y_fechas/impuesto_2da_categoria/impuesto2026.htm',
+  sii_utm:'https://www.sii.cl/valores_y_fechas/utm/utm2026.htm',
+  bcn_transito:'https://www.bcn.cl/leychile/navegar?idNorma=1007469',
+  bcn_ct:'https://www.bcn.cl/leychile/navegar?idNorma=207436',
+  afp:'https://miportal.spensiones.gob.cl/tramite/ficha/10'
+};
+const numv=s=>{s=String(s).trim().replace(/[$\s]/g,'');
+  if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  const v=parseFloat(s);return isFinite(v)?v:0};
+const clp=v=>(v<0?'−$':'$')+Math.round(Math.abs(v)).toLocaleString('es-CL');
+const nf=(v,d=2)=>v.toLocaleString('es-CL',{maximumFractionDigits:d});
 const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const ym=(y,m)=>{const d=new Date(Date.UTC(y,m,1));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')};
-function setTool(k){tool=k;LS.set('tool',k);tools()}
-function tools(){
-  el('tsel').innerHTML=TOOLS.map(([k,t])=>`<button class="chip${k===tool?' on':''}" onclick="setTool('${k}')">${t}</button>`).join('');
-  ({iva:ivaUI,ipc:ipcUI,oro:oroUI,utm:utmUI,tabla:tablaUI})[tool]();
-}
+const curYM=(k=0)=>{const n=new Date();return ym(n.getFullYear(),n.getMonth()+k)};
+const today=()=>{const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')};
+const ymTxt=s=>{const [y,m]=s.split('-').map(Number);return MES[m-1]+' '+y};
+const L=(u,t)=>`<a href="${u}" target="_blank" rel="noopener" style="color:var(--blue)">${t}</a>`;
+// constructores de formulario
+const F=(id,lab,val='',x='')=>`<label class="flab" for="${id}">${lab}</label><input class="fld" id="${id}" inputmode="decimal" value="${val}" ${x}>`;
+const T=(id,lab,val='',x='')=>`<label class="flab" for="${id}">${lab}</label><input class="fld" id="${id}" value="${val}" ${x}>`;
+const S=(id,lab,opts,val)=>`<label class="flab" for="${id}">${lab}</label><select class="fld" id="${id}">${opts.map(o=>{const [k,t]=Array.isArray(o)?o:[o,o];return `<option value="${k}"${String(k)===String(val)?' selected':''}>${t}</option>`}).join('')}</select>`;
+const M=(id,lab,val)=>`<label class="flab" for="${id}">${lab}</label><input class="fld" type="month" id="${id}" min="1990-01" value="${val||curYM()}">`;
+const D=(id,lab,val)=>`<label class="flab" for="${id}">${lab}</label><input class="fld" type="date" id="${id}" value="${val||today()}">`;
+const R2=(...h)=>`<div class="frow">${h.map(x=>`<div>${x}</div>`).join('')}</div>`;
+const G=(id,h)=>`<div id="${id}">${h}</div>`;
+const OUT='<table class="tbl" id="out"></table>';
+const NOTE=t=>`<div class="mini" style="text-align:left;margin-top:10px;line-height:1.5">${t}</div>`;
+const v=id=>el(id)?el(id).value:'';
+const n=id=>numv(v(id));
+const vis=(id,on)=>{const e=el(id);if(e)e.style.display=on?'':'none'};
+const show=(rows,id='out')=>{const e=el(id);if(e)e.innerHTML=rows.filter(Boolean).map(([a,b,c])=>
+  c==='h'?`<tr><th>${a}</th><th>${b}</th></tr>`:`<tr class="${c||''}"><td>${a}</td><td>${b}</td></tr>`).join('')};
+const tabla=(cab,filas)=>`<tr>${cab.map(c=>`<th>${c}</th>`).join('')}</tr>`+filas.map(f=>`<tr>${f.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('');
 
-// IVA 19%: desde el neto se suma, desde el bruto se desglosa.
-function ivaUI(){
-  const v=el('ivaIn')?el('ivaIn').value:'';
-  el('tool').innerHTML=`<div class="chips">
-    <button class="chip${ivaMode==='neto'?' on':''}" onclick="ivaMode='neto';ivaUI()">Tengo el neto</button>
-    <button class="chip${ivaMode==='bruto'?' on':''}" onclick="ivaMode='bruto';ivaUI()">Tengo el bruto</button></div>
-    <input class="fld" id="ivaIn" inputmode="decimal" placeholder="Monto en pesos" value="${v}" oninput="ivaCalc()">
-    <table class="tbl" id="ivaOut"></table>`;
-  ivaCalc();
+/* --- series oficiales: UTM mensual y UF diaria (mindicador.cl = Banco Central / SII) --- */
+const UTMY={}, UFY={};
+function utmYear(y){
+  return UTMY[y]||(UTMY[y]=fetch(`https://mindicador.cl/api/utm/${y}`).then(r=>r.json())
+    .then(r=>new Map((r.serie||[]).map(p=>[p.fecha.slice(0,7),p.valor])))
+    .catch(()=>{delete UTMY[y];return new Map()}));
 }
-function ivaCalc(){
-  const v=numv(el('ivaIn').value), neto=ivaMode==='neto'?v:v/1.19, iva=neto*.19;
-  el('ivaOut').innerHTML=`<tr><td>Valor neto</td><td>${clp(neto)}</td></tr>
-    <tr><td>IVA (19%)</td><td>${clp(iva)}</td></tr><tr class="tot"><td>Total (bruto)</td><td>${clp(neto+iva)}</td></tr>`;
+async function utmOf(k){
+  if(!k)return null;
+  const v=(await utmYear(+k.slice(0,4))).get(k);
+  return v||(k===curYM()&&R.UTM)||null;
 }
-
-// IPC mensual derivado de la UF: entre el 10 de un mes y el 9 del siguiente la UF crece según el IPC
-// de dos meses atrás, así que IPC(m) = UF(9 de m+2) / UF(9 de m+1) − 1. Calza al 0,1% con el INE,
-// y sigue al día aunque mindicador.cl dejó de publicar la serie del IPC.
-const UFY={};
 function ufYear(y){
   return UFY[y]||(UFY[y]=fetch(`https://mindicador.cl/api/uf/${y}`).then(r=>r.json())
     .then(r=>new Map((r.serie||[]).map(p=>[p.fecha.slice(0,10),p.valor])))
     .catch(()=>{delete UFY[y];return new Map()}));
 }
-async function ufOn(y,m){const d=new Date(Date.UTC(y,m,9));return (await ufYear(d.getUTCFullYear())).get(d.toISOString().slice(0,10))}
+async function ufOn(y,m,d=9){const t=new Date(Date.UTC(y,m,d));return (await ufYear(t.getUTCFullYear())).get(t.toISOString().slice(0,10))}
+// IPC mensual derivado de la UF: entre el 10 de un mes y el 9 del siguiente la UF crece según el IPC
+// de dos meses atrás, así que IPC(m) = UF(9 de m+2) / UF(9 de m+1) − 1. Calza al 0,1% con el INE,
+// y sigue al día aunque mindicador.cl dejó de publicar la serie del IPC en dic-2025.
 async function ipcMes(y,m){const a=await ufOn(y,m+1),b=await ufOn(y,m+2);return a&&b?Math.round((b/a-1)*1000)/10:null}
 let ipcLast=null;
 async function ipcUltimo(){
   if(ipcLast)return ipcLast;
-  const n=new Date();
-  for(let k=1;k<5;k++){const y=n.getFullYear(),m=n.getMonth()-k,v=await ipcMes(y,m);
-    if(v!=null)return ipcLast={k:ym(y,m),v}}
+  const t=new Date();
+  for(let k=1;k<5;k++){const y=t.getFullYear(),m=t.getMonth()-k,x=await ipcMes(y,m);
+    if(x!=null)return ipcLast={k:ym(y,m),v:x}}
   return null;
 }
-function ipcUI(){
-  el('tool').innerHTML=`<label class="flab">Monto en pesos</label>
-    <input class="fld" id="ipcM" inputmode="decimal" placeholder="Monto" value="100.000" oninput="ipcCalc()">
-    <div class="frow"><div><label class="flab">Desde</label><input class="fld" type="month" id="ipcA" min="1990-01" onchange="ipcCalc()"></div>
-    <div><label class="flab">Hasta</label><input class="fld" type="month" id="ipcB" min="1990-01" onchange="ipcCalc()"></div></div>
-    <div class="big" id="ipcR">—</div><div class="sub" id="ipcV"></div>
-    <div class="mini" id="ipcN" style="text-align:left;margin-top:8px">Calculando último IPC…</div>`;
-  ipcUltimo().then(u=>{
-    if(!u){el('ipcN').textContent='Sin conexión: el reajuste necesita la serie de la UF.';return}
-    const [y,m]=u.k.split('-').map(Number);
-    el('ipcB').value=el('ipcB').max=el('ipcA').max=u.k; el('ipcA').value=ym(y-1,m-1);
-    el('ipcN').textContent=`Último IPC: ${MES[m-1]} ${y}, ${u.v.toLocaleString('es-CL')}%. Fuente: Banco Central vía la variación de la UF.`;
-    ipcCalc();
-  });
+async function ipcSerie(days){
+  const u=await ipcUltimo();if(!u)return [];
+  const [y,m]=u.k.split('-').map(Number), nm=Math.ceil(days/30)+1, s=[];
+  const yrs=new Set();for(let i=0;i<nm+2;i++)yrs.add(new Date(Date.UTC(y,m-1-i+2,1)).getUTCFullYear());
+  await Promise.all([...yrs].map(ufYear));
+  for(let i=nm-1;i>=0;i--){const d=new Date(Date.UTC(y,m-1-i,1)),x=await ipcMes(d.getUTCFullYear(),d.getUTCMonth());
+    if(x!=null)s.push([+d,x])}
+  return s;
 }
-async function ipcCalc(){
-  const A=el('ipcA').value,B=el('ipcB').value,M=numv(el('ipcM').value);
-  if(!A||!B)return;
+function bajar(nombre,filas){
+  const csv=filas.map(f=>f.map(c=>/[;"\n]/.test(c)?`"${String(c).replace(/"/g,'""')}"`:c).join(';')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));
+  a.download=nombre;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+const impUnico=(base,utm)=>{const u=base/utm;let t=LEY.IUSC[0];for(const r of LEY.IUSC)if(u>r[0])t=r;return Math.max(0,(u*t[1]-t[2])*utm)};
+const JMAX=(d=new Date())=>{const s=d.toISOString?d.toISOString().slice(0,10):d;
+  return s<'2024-04-26'?45:s<'2026-04-26'?44:s<'2028-04-26'?42:40};
+const gratLegal=rem=>Math.min(rem*.25,4.75*LEY.IMM/12);
+const asigFam=(ing,c,ci=0)=>{const t=LEY.ASIG.find(a=>ing<=a[0]);return t?{m:t[1],tot:t[1]*(c+2*ci)}:{m:0,tot:0}};
+
+/* --- liquidación de sueldo (contrato mensual) --- */
+function liquidacion(p){
+  const uf=R.UF||40000, utm=R.UTM||70000;
+  const he=p.he>0?p.base/30*28/(p.jor*4)*1.5*p.he:0;
+  const grat=p.gm==='legal'?gratLegal(p.base+he+p.com+p.bon):p.gm==='man'?p.gfix:0;
+  const imp=p.base+he+p.com+p.bon+grat;
+  const bAfp=Math.min(imp,LEY.TOPE_AFP*uf), bAfc=Math.min(imp,LEY.TOPE_AFC*uf);
+  const tasa=p.afp in LEY.AFP?.10+LEY.AFP[p.afp]:0;
+  const afp=bAfp*tasa;
+  const s7=bAfp*.07, salud=p.sa==='isapre'?Math.max(s7,p.isa*uf):s7;
+  const afc=p.con==='ind'?bAfc*.006:0;
+  const trib=imp-afp-Math.min(salud,s7)-afc;
+  const iu=impUnico(trib,utm);
+  const af=asigFam(imp,p.car).tot;
+  const hab=imp+p.ni+af, des=afp+salud+afc+iu+p.ot;
+  return {he,grat,imp,af,hab,afp,tasa,salud,afc,trib,iu,des,liq:hab-des,bAfp};
+}
+const AFPOPT=[...Object.keys(LEY.AFP).map(k=>[k,`${k} · ${nf(LEY.AFP[k]*100)}%`]),['no','No cotiza']];
+function liqUI(modo){
+  return (modo==='bruto'?F('lt','Líquido que quieres recibir','800.000'):F('lb','Sueldo base','553.553'))+
+  R2(S('lc','Contrato',[['ind','Indefinido'],['fijo','Plazo fijo u obra']],'ind'),S('lafp','AFP',AFPOPT,'Uno'))+
+  S('lg','Gratificación',[['legal','Legal: 25%, tope 4,75 IMM'],['no','No se paga mensual'],['man','Monto fijo']],'legal')+
+  G('g_lg',F('lgm','Gratificación fija','0'))+
+  R2(F('lhe','Horas extra (cantidad)','0'),F('lj','Jornada semanal (h)',JMAX()))+
+  R2(F('lco','Comisiones','0'),F('lbo','Bonos imponibles','0'))+
+  R2(F('lni','Colación y movilización','0'),F('lcar','Cargas familiares','0'))+
+  R2(S('lsa','Salud',[['fonasa','Fonasa 7%'],['isapre','Isapre']],'fonasa'),G('g_lsa',F('lisa','Plan Isapre (UF)','0')))+
+  F('lot','Otros descuentos (préstamos, cuotas)','0')+OUT+
+  NOTE(`Topes imponibles: ${LEY.TOPE_AFP} UF (AFP y salud) y ${LEY.TOPE_AFC} UF (cesantía), ${L(SRC.sp,'Superintendencia de Pensiones')}. Impuesto único con la tabla del ${L(SRC.sii_iusc,'SII')}. Asignación familiar y gratificación con el ingreso mínimo de $${LEY.IMM.toLocaleString('es-CL')} (${L(SRC.dt,'DT')}). El aporte del empleador (seguro de invalidez, 1% de la reforma, cesantía patronal) no se descuenta del sueldo.`);
+}
+function liqParams(base){
+  return {base,con:v('lc'),afp:v('lafp'),gm:v('lg'),gfix:n('lgm'),he:n('lhe'),jor:n('lj')||JMAX(),
+    com:n('lco'),bon:n('lbo'),ni:n('lni'),car:n('lcar'),sa:v('lsa'),isa:n('lisa'),ot:n('lot')};
+}
+function liqShow(r,extra=[]){
+  vis('g_lg',v('lg')==='man');vis('g_lsa',v('lsa')==='isapre');
+  show([...extra,
+    r.he?['Horas extra',clp(r.he)]:null,['Gratificación',clp(r.grat)],['Total imponible',clp(r.imp),'tot'],
+    ['Colación y movilización',clp(n('lni'))],r.af?['Asignación familiar',clp(r.af)]:null,['Total haberes',clp(r.hab),'tot'],
+    [`AFP (${nf(r.tasa*100)}%)`,'−'+clp(r.afp)],['Salud','−'+clp(r.salud)],['Seguro de cesantía (0,6%)','−'+clp(r.afc)],
+    ['Base tributable',clp(r.trib)],['Impuesto único','−'+clp(r.iu)],n('lot')?['Otros descuentos','−'+clp(n('lot'))]:null,
+    ['Total descuentos','−'+clp(r.des)],['Sueldo líquido',clp(r.liq),'tot']]);
+}
+
+// Un cálculo que sigue esperando datos cuando ya se cambió de herramienta se queda detenido y no escribe.
+const H=p=>{const me=runId;return Promise.resolve(p).then(x=>me===runId?x:new Promise(()=>{}))};
+/* --- herramientas: [categoría, nombre, ui, cálculo] --- */
+const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['oro','Oro y plata'],['mon','Monedas'],['otras','Otras']];
+const TD={};
+const tool_=(k,cat,nom,ui,calc,o={})=>TD[k]=Object.assign({cat,nom,ui,calc},o);
+
+// UTM de cualquier mes, UTA y tabla anual con descarga
+tool_('utmmes','ind','UTM y UTA de cualquier mes',()=>
+  R2(M('um','Mes'),S('uu','Unidad',[['utm','UTM'],['uta','UTA'],['clp','Pesos']],'utm'))+F('uq','Cantidad','1')+OUT+
+  '<p class="flab" style="margin-top:14px">Año completo <button class="chip" onclick="utmCSV()">Descargar CSV</button></p><table class="tbl" id="uy"></table>'+
+  NOTE(`Serie oficial del ${L(SRC.sii_utm,'SII')} vía mindicador.cl, desde 1990. UTA = 12 UTM del mismo mes. El IPC es la variación de ese mes.`),
+async()=>{
+  const k=v('um'),u=await H(utmOf(k)),q=n('uq'),un=v('uu');
+  if(!u){show([['Sin dato para '+ymTxt(k),'—']]);}
+  else show([['1 UTM · '+ymTxt(k),clp(u),'tot'],['1 UTA',clp(u*12)],
+    un==='clp'?[nf(q,0)+' pesos','= '+nf(q/u,6)+' UTM']:[nf(q,6)+' '+un.toUpperCase(),clp(q*u*(un==='uta'?12:1)),'tot']]);
+  const y=+k.slice(0,4),mp=await H(utmYear(y)),f=[];
+  for(let m=0;m<12;m++){const kk=ym(y,m),x=mp.get(kk);if(x){const ip=await H(ipcMes(y,m-2));f.push([MES[m],clp(x),clp(x*12),ip==null?'—':nf(ip,1)+'%'])}}
+  el('uy').innerHTML=tabla(['Mes','UTM','UTA','IPC (m−2)'],f);
+});
+async function utmCSV(){const y=+v('um').slice(0,4),mp=await H(utmYear(y));
+  bajar(`utm-${y}.csv`,[['Mes','UTM','UTA'],...[...mp].sort().map(([k,x])=>[k,x,x*12])])}
+
+// UF día a día y por fecha
+tool_('ufdia','ind','UF día a día',()=>R2(D('ud','Fecha'),F('uq','Cantidad UF','1'))+OUT+
+  '<p class="flab" style="margin-top:14px">Últimos 15 días y días ya publicados</p><table class="tbl" id="ut"></table>'+
+  NOTE('El Banco Central fija cada día 9 los valores de la UF hasta el día 9 del mes siguiente: los días futuros de la tabla ya son oficiales.'),
+async()=>{
+  const d=v('ud'),y=+d.slice(0,4),mp=await H(ufYear(y)),x=mp.get(d),q=n('uq');
+  show(x?[['1 UF · '+d.split('-').reverse().join('-'),'$'+nf(x,2),'tot'],[nf(q,4)+' UF',clp(q*x),'tot'],['$1.000.000','= '+nf(1e6/x,4)+' UF']]:[['Sin valor para esa fecha','—']]);
+  const t=new Date(),ys=[t.getFullYear()];if(t.getMonth()===11)ys.push(t.getFullYear()+1);if(t.getMonth()===0)ys.unshift(t.getFullYear()-1);
+  const all=new Map();for(const yy of ys)for(const [k,val] of await H(ufYear(yy)))all.set(k,val);
+  const hoy=today(),f=[...all].filter(([k])=>k>=new Date(Date.now()-14*864e5).toISOString().slice(0,10)).sort();
+  el('ut').innerHTML=tabla(['Fecha','UF'],f.map(([k,val])=>[k.split('-').reverse().join('-')+(k===hoy?' · hoy':k>hoy?' · publicado':''),'$'+nf(val,2)]));
+});
+
+// Valor de un indicador en una fecha
+tool_('fecha','ind','Dólar, euro, UF o UTM en una fecha',()=>
+  R2(S('fi','Indicador',[['dolar','Dólar observado'],['euro','Euro'],['uf','UF'],['utm','UTM']],'dolar'),D('fd','Fecha'))+F('fq','Cantidad','1')+OUT+
+  NOTE('Valores oficiales del Banco Central de Chile vía mindicador.cl. En fines de semana y feriados el dólar y el euro usan el último día hábil anterior.'),
+async()=>{
+  const i=v('fi'),q=n('fq');let d=new Date(v('fd')+'T12:00:00'),x=null,usada='';
+  for(let k=0;k<8&&!x;k++){const s=String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
+    try{const r=await H(fetch(`https://mindicador.cl/api/${i}/${s}`)).then(r=>r.json());if(r.serie&&r.serie[0]){x=r.serie[0].valor;usada=s}}catch(e){break}
+    d=new Date(d-864e5)}
+  show(x?[['Valor del '+usada,'$'+nf(x,2),'tot'],[nf(q,4)+' unidades',clp(q*x),'tot'],['$100.000','= '+nf(1e5/x,4)]]:[['Sin dato','—']]);
+});
+
+// Planilla: varios montos, cada uno con su mes y unidad
+let PL=LS.get('planilla',[{c:'',q:'',u:'utm',m:curYM()}]);
+tool_('planilla','ind','Planilla de montos UTM',()=>
+  '<div id="prows"></div><div class="chips" style="margin-top:8px"><button class="chip" onclick="plAdd()">＋ Fila</button><button class="chip" onclick="el(\'g_pp\').dataset.on=\'1\';vis(\'g_pp\',1)">Pegar lista</button><button class="chip" onclick="plCSV()">Descargar CSV</button><button class="chip" onclick="plCopy()">Copiar</button><button class="chip" onclick="PL=[];plAdd()">Limpiar</button></div>'+
+  G('g_pp','<textarea class="fld" id="ppt" rows="4" placeholder="Concepto; cantidad; unidad (UTM, UTA o CLP); mes (2026-03)"></textarea><button class="chip" onclick="plPaste()">Agregar a la planilla</button>')+OUT+
+  NOTE('Cada fila usa la UTM de su mes; «con la UTM de hoy» lleva esas mismas UTM al valor vigente. Se guarda solo en este dispositivo.'),
+async()=>{
+  vis('g_pp',el('g_pp').dataset.on==='1');
+  const box=el('prows');
+  if(box.childElementCount!==PL.length)box.innerHTML=PL.map((r,i)=>`<div class="prow" data-i="${i}">
+    <input class="fld" data-k="c" placeholder="Concepto" value="${r.c.replace(/"/g,'&quot;')}"><input class="fld" data-k="q" inputmode="decimal" placeholder="Cantidad" value="${r.q}">
+    <select class="fld" data-k="u">${['utm','uta','clp'].map(u=>`<option value="${u}"${u===r.u?' selected':''}>${u==='clp'?'Pesos':u.toUpperCase()}</option>`).join('')}</select>
+    <input class="fld" type="month" data-k="m" value="${r.m}"><button class="chip" onclick="PL.splice(${i},1);plSave();runTool()">✕</button><small data-r></small></div>`).join('');
+  box.querySelectorAll('.prow').forEach(row=>{const r=PL[row.dataset.i];row.querySelectorAll('[data-k]').forEach(e=>r[e.dataset.k]=e.value)});
+  plSave();
+  const hoy=R.UTM;let tU=0,tM=0,c=0;
+  for(const [i,r] of PL.entries()){const u=await H(utmOf(r.m)),q=numv(r.q),row=box.children[i];
+    if(!u||!q){if(row)row.querySelector('[data-r]').textContent=q&&!u?'sin UTM para ese mes':'';continue}
+    const utms=r.u==='utm'?q:r.u==='uta'?q*12:q/u;r._utm=utms;r._v=u;
+    tU+=utms;tM+=utms*u;c++;
+    if(row)row.querySelector('[data-r]').textContent=`${nf(utms,6)} UTM · ${clp(utms*u)} en su mes · ${clp(utms*hoy)} hoy`}
+  show([['Filas calculadas',c],['Total en UTM',nf(tU,6)+' UTM','tot'],['Total en sus meses',clp(tM)],['Total con la UTM de hoy',clp(tU*hoy),'tot']]);
+},{nosave:1});
+function plSave(){LS.set('planilla',PL.map(({c,q,u,m})=>({c,q,u,m})))}
+function plAdd(){PL.push({c:'',q:'',u:'utm',m:curYM()});plSave();el('prows').innerHTML='';runTool()}
+function plPaste(){
+  const mesTxt=s=>{s=s.trim().toLowerCase();if(/^\d{4}-\d{2}$/.test(s))return s;const i=MES.findIndex(m=>s.startsWith(m));const y=s.match(/\d{4}/);return i>=0&&y?ym(+y[0],i):curYM()};
+  v('ppt').split('\n').map(l=>l.split(/\t|;/).map(x=>x.trim())).filter(c=>c.join('')).forEach(c=>{
+    let r={c:'',q:'',u:'utm',m:curYM()};
+    if(c.length===1)r.q=c[0];else{r.c=c[0];r.q=c[1]||'';if(c[2])r.u=/uta/i.test(c[2])?'uta':/clp|peso|\$/i.test(c[2])?'clp':'utm';if(c[3])r.m=mesTxt(c[3])}
+    PL.push(r)});
+  PL=PL.filter(r=>r.q||r.c);el('ppt').value='';el('g_pp').dataset.on='0';plSave();el('prows').innerHTML='';runTool();
+}
+function plRows(){return [['Concepto','Cantidad','Unidad','Mes','UTM del mes','Equivalente en UTM','En su mes','Con la UTM de hoy'],
+  ...PL.filter(r=>r._utm).map(r=>[r.c,r.q,r.u.toUpperCase(),r.m,r._v,nf(r._utm,6),Math.round(r._utm*r._v),Math.round(r._utm*R.UTM)])]}
+function plCSV(){bajar('planilla-utm.csv',plRows())}
+function plCopy(){navigator.clipboard&&navigator.clipboard.writeText(plRows().map(r=>r.join('\t')).join('\n'))}
+
+// Reajuste por UTM
+tool_('reutm','ind','Reajuste por UTM',()=>F('ra','Monto original en pesos','100.000')+R2(M('rd','Mes inicial',curYM(-12)),M('rh','Mes final'))+OUT+
+  NOTE('Conserva la cantidad de UTM entre ambos meses: monto ÷ UTM inicial × UTM final. No agrega intereses ni recargos.'),
+async()=>{
+  const a=await H(utmOf(v('rd'))),b=await H(utmOf(v('rh'))),m=n('ra');
+  if(!a||!b)return show([['Falta la UTM de uno de los meses','—']]);
+  const u=m/a,r=u*b;
+  show([['Equivalencia original',nf(u,6)+' UTM'],['Monto reajustado',clp(r),'tot'],['Diferencia',clp(r-m)+' · '+nf((b/a-1)*100,3)+'%'],
+    ['Cálculo',`${clp(m)} ÷ ${clp(a)} × ${clp(b)}`]]);
+});
+
+// Reajuste por IPC + tabla mensual. Fuente principal: API de la Calculadora IPC del INE
+// (api-calculadora.ine.cl, la misma del sitio oficial); respaldo: IPC derivado de la UF.
+const INE='https://api-calculadora.ine.cl/', INEC={};
+function ineVar(a,b){   // a, b = 'AAAA-MM'; devuelve la variación % oficial entre ambos meses
+  const k=a+'_'+b;if(INEC[k])return INEC[k];
+  const [ya,ma]=a.split('-').map(Number),[yb,mb]=b.split('-').map(Number);
+  return INEC[k]=fetch(`${INE}ServiciosCalculadoraVariacion?mesInicio=${ma}&AnioInicio=${ya}&mesTermino=${mb}&AnioTermino=${yb}&valor_a_ajustar=100000`)
+    .then(r=>r.json()).then(r=>{const x=parseFloat(String(r[0].variacion_ipc).replace(',','.'));if(!isFinite(x))throw 0;return x})
+    .catch(()=>{delete INEC[k];return null});
+}
+let ineLast=null;
+async function ineUltimo(){
+  if(ineLast)return ineLast;
+  const y=new Date().getFullYear();
+  for(const yy of [y,y-1]){try{const r=await H(fetch(`${INE}ServiciosCalculadoraMeses?anio=${yy}`)).then(r=>r.json());
+    if(r.length)return ineLast=ym(yy,Math.max(...r.map(x=>x.nmes))-1)}catch(e){return null}}
+  return null;
+}
+async function ipcUF(A,B){   // respaldo: producto de las variaciones mensuales derivadas de la UF
   const [ya,ma]=A.split('-').map(Number),[yb,mb]=B.split('-').map(Number);
-  let i0=ya*12+ma-1,i1=yb*12+mb-1;const inv=i0>i1;if(inv)[i0,i1]=[i1,i0];
-  el('ipcR').textContent='…';
-  const yrs=[];for(let y=Math.floor(i0/12);y<=Math.floor(i1/12)+1;y++)yrs.push(y);
-  await Promise.all(yrs.map(ufYear));
-  let f=1;
-  for(let i=i0+1;i<=i1;i++){const v=await ipcMes(Math.floor(i/12),i%12);
-    if(v==null){el('ipcR').textContent='—';el('ipcV').textContent=`IPC de ${MES[i%12]} ${Math.floor(i/12)} aún no disponible`;return}
-    f*=1+v/100}
-  if(inv)f=1/f;
-  el('ipcR').textContent=clp(M*f);
-  el('ipcV').textContent=`Variación IPC ${((f-1)*100).toLocaleString('es-CL',{maximumFractionDigits:1})}% · factor ${f.toLocaleString('es-CL',{maximumFractionDigits:4})}`;
+  const i0=ya*12+ma-1,i1=yb*12+mb-1,yrs=[];for(let y=ya;y<=yb+1;y++)yrs.push(y);
+  await H(Promise.all(yrs.map(ufYear)));let f=1;
+  for(let i=i0+1;i<=i1;i++){const x=await H(ipcMes(Math.floor(i/12),i%12));if(x==null)return null;f*=1+x/100}
+  return (f-1)*100;
+}
+const ipcVar=async(A,B)=>A===B?0:(await H(ineVar(A,B)))??await H(ipcUF(A,B));
+tool_('ipc','ind','Reajuste por IPC',()=>F('im','Monto en pesos','100.000')+R2(M('ia','Desde',curYM(-14)),M('ib','Hasta',curYM(-2)))+OUT+
+  '<p class="flab" style="margin-top:14px">IPC mes a mes</p><table class="tbl" id="it"></table>'+
+  NOTE(`Variación oficial del ${L('https://calculadoraipc.ine.cl/','INE')} (su calculadora redondea la variación a un decimal y la aplica al monto). Sin conexión al INE se usa el IPC derivado de la UF del Banco Central. Acumulada: desde diciembre del año anterior; 12 meses: contra el mismo mes del año pasado.`),
+async()=>{
+  const u=(await H(ineUltimo()))||(await H(ipcUltimo())||{}).k;
+  if(!u)return show([['Sin conexión al INE ni al Banco Central','—']]);
+  ['ia','ib'].forEach(id=>el(id).max=u);
+  let A=v('ia')>u?u:v('ia'),B=v('ib')>u?u:v('ib');const Mo=n('im'),inv=A>B;if(inv)[A,B]=[B,A];
+  const x=await H(ipcVar(A,B));
+  if(x==null)show([['Sin dato para ese período','—']]);
+  else{const f=inv?1/(1+x/100):1+x/100;
+    show([['Monto reajustado',clp(Mo*f),'tot'],['Variación IPC',(inv?'−':'')+nf(x,1)+'%'],['Período',ymTxt(A)+' a '+ymTxt(B)],['Último IPC publicado',ymTxt(u)]])}
+  const [yu,mu]=u.split('-').map(Number),meses=[];for(let i=0;i<13;i++)meses.push(ym(yu,mu-1-i));
+  const rows=await H(Promise.all(meses.map(async k=>{const [y,m]=k.split('-').map(Number);
+    const [mm,ac,a12]=await Promise.all([ipcVar(ym(y,m-2),k),ipcVar(ym(y-1,11),k),ipcVar(ym(y-1,m-1),k)]);
+    const p=z=>z==null?'—':nf(z,1)+'%';return [ymTxt(k),p(mm),p(ac),p(a12)]})));
+  el('it').innerHTML=tabla(['Mes','Mensual','Acum. año','12 meses'],rows);
+});
+
+// Proyección UTM: tres escenarios con las últimas 12 variaciones
+tool_('proy','ind','Proyección UTM (presupuesto)',()=>R2(F('pq','Cantidad UTM','1'),S('ph','Meses hacia adelante',[1,2,3,4,5,6,7,8,9,10,11,12],6))+OUT+
+  NOTE('No es un pronóstico oficial. Escenario central: variación mensual compuesta de los últimos 12 meses; bajo y alto: cuartiles de esas variaciones.'),
+async()=>{
+  const y=new Date().getFullYear(),all=new Map([...await H(utmYear(y-1)),...await H(utmYear(y))]);
+  const s=[...all].sort().slice(-13);
+  if(s.length<13)return show([['Sin serie suficiente','—']]);
+  const ch=s.slice(1).map((x,i)=>x[1]/s[i][1]-1).sort((a,b)=>a-b);
+  const q=p=>{const i=(ch.length-1)*p,lo=Math.floor(i);return ch[lo]+(ch[Math.ceil(i)]-ch[lo])*(i-lo)};
+  const lo=q(.25),hi=q(.75),ce=Math.pow(s[12][1]/s[0][1],1/12)-1,base=s[12][1],k=n('pq'),h=+v('ph');
+  const [by,bm]=s[12][0].split('-').map(Number),f=[];
+  for(let i=1;i<=h;i++)f.push([ymTxt(ym(by,bm-1+i)),clp(k*base*Math.pow(1+lo,i)),clp(k*base*Math.pow(1+ce,i)),clp(k*base*Math.pow(1+hi,i))]);
+  el('out').innerHTML=tabla(['Mes','Bajo · '+nf(lo*100,3)+'%','Central · '+nf(ce*100,3)+'%','Alto · '+nf(hi*100,3)+'%'],f)+
+    `<tr class="tot"><td colspan="4">Partida: ${ymTxt(s[12][0])}, 1 UTM = ${clp(base)}</td></tr>`;
+});
+
+// Multas de tránsito (Ley 18.290, arts. 194, 199-204, 197 quinquies)
+const TR={leve:[.2,.5,'Leve'],menos:[.5,1,'Menos grave'],grave:[1,1.5,'Grave'],gravisima:[1.5,3,'Gravísima']};
+function trRango(k,nota,prev=0){const x=['grave','gravisima'].includes(k)?(prev==1?2:prev>=2?3:1):1;
+  return {lab:TR[k][2],min:TR[k][0]*x,max:TR[k][1]*x,nota:nota+(x>1?` Se aplica ${x==2?'el doble':'el triple'} por la reincidencia indicada.`:'')}}
+tool_('transito','multas','Multas de tránsito',()=>M('tm','Mes de la citación')+
+  S('tmo','¿Qué necesitas calcular?',[['cit','Tengo una citación'],['vel','Me excedí de velocidad'],['lic','Problema con una licencia']],'cit')+
+  G('g_cit',S('tcl','Qué indica la citación',[['0.2|0.5','Leve · 0,2 a 0,5 UTM'],['0.5|1','Menos grave · 0,5 a 1 UTM'],['1|1.5','Grave · 1 a 1,5 UTM'],['1.5|3','Gravísima · 1,5 a 3 UTM'],['ex','Un monto exacto en UTM'],['ra','Otro rango en UTM']],'1|1.5')+
+    G('g_tex',F('tex','Monto en UTM','1'))+G('g_tra',R2(F('tde','Desde UTM','1'),F('tha','Hasta UTM','2'))))+
+  G('g_vel',R2(F('tli','Límite de la vía (km/h)','50'),F('tve','Velocidad registrada (km/h)','65')))+
+  G('g_lic',S('tlc','¿Qué pasó con la licencia?',[['never','Nunca la obtuve · vehículo particular'],['wrong','Tengo otra clase · vehículo no profesional'],['forgot','Es válida, pero no la llevaba'],['professional','Falta licencia profesional para ese vehículo'],['owner','Como dueño, presté el vehículo a alguien sin requisitos'],['operator','Como explotador de transporte, permití conducir sin licencia válida'],['other','Otro: vencida, suspendida o cancelada']],'never'))+
+  G('g_rei',S('tre','Reincidencia confirmada',[[0,'Sin reincidencia'],[1,'Una · doble'],[2,'Nueva · triple']],0))+OUT+
+  NOTE(`Escala general del art. 200-204 de la ${L(SRC.bcn_transito,'Ley de Tránsito')}. Referencia, no liquidación: el juzgado decide el monto, descuentos y costas. Usa el mes que indique la citación.`),
+async()=>{
+  const mo=v('tmo'),pr=+v('tre');['cit','vel','lic'].forEach(k=>vis('g_'+k,mo===k));vis('g_rei',mo!=='cit');
+  vis('g_tex',v('tcl')==='ex');vis('g_tra',v('tcl')==='ra');
+  let r;
+  if(mo==='cit'){const c=v('tcl');r=c==='ex'?{lab:'Monto exacto',min:n('tex'),max:n('tex'),nota:''}:c==='ra'?{lab:'Rango de la citación',min:n('tde'),max:n('tha'),nota:''}:
+    {lab:'Según clasificación',min:+c.split('|')[0],max:+c.split('|')[1],nota:'Reincidencia, costas y descuentos pueden cambiar el pago.'}}
+  else if(mo==='vel'){const li=Math.round(n('tli')),ve=Math.round(n('tve')),ex=ve-li;
+    r=!(li>0)?{lab:'Revisa las velocidades'}:ex<=0?{lab:'Dentro del límite'}:ex<=5?{lab:'Dentro de la tolerancia',nota:`Exceso de ${ex} km/h. El art. 203 contempla 5 km/h de tolerancia; no autoriza a exceder la velocidad.`}:
+      ex===20||ex===60?{lab:'Comprueba la citación',nota:`Exceso exacto de ${ex} km/h: el texto legal superpone tramos en ese límite. Usa la clasificación de la citación.`}:
+      ex>60?{lab:'Puede tener consecuencias penales',nota:`Exceso de ${ex} km/h. El art. 197 quinquies contempla prisión o multa y suspensión de licencia.`}:
+      trRango(ex<=10?'menos':ex<20?'grave':'gravisima',`Exceso de ${ex} km/h sobre el límite.`,pr)}
+  else{const k=v('tlc');r=k==='never'?trRango('gravisima','Conducir sin haber obtenido licencia: art. 199 n.º 2.',pr):
+    k==='wrong'?trRango('grave','Licencia de otra clase: art. 200 n.º 2.',pr):k==='forgot'?trRango('leve','Licencia válida no portada: art. 6 y regla residual del art. 202.'):
+    k==='owner'?trRango('grave','Entregar el vehículo a quien no cumple requisitos: art. 200 n.º 4.',pr):
+    k==='professional'?{lab:'Consecuencia penal',nota:'Art. 194 inc. 1º: conducir sin la licencia profesional exigida. No se resuelve con la multa general.'}:
+    k==='operator'?{lab:'Sanción especial al explotador',min:5,max:10,nota:'Art. 194 inc. 2º: permitir conducir transporte público, taxi, escolar o carga sin la licencia requerida.'}:
+    {lab:'Revisa la resolución',nota:'Licencia vencida, suspendida o cancelada, o con accidente: aplican otras reglas.'}}
+  const u=await H(utmOf(v('tm')));
+  show([[r.lab,r.min!=null?`${nf(r.min)} a ${nf(r.max)} UTM`:'—','tot'],
+    r.min!=null&&u?['Mínimo',clp(r.min*u)]:null,r.min!=null&&u?['Máximo',clp(r.max*u),'tot']:null,u?['UTM '+ymTxt(v('tm')),clp(u)]:['Sin UTM para ese mes','—']]);
+  el('out').insertAdjacentHTML('beforeend',r.nota?`<tr><td colspan="2" class="mini" style="text-align:left">${r.nota}</td></tr>`:'');
+});
+
+// Conversión de un rango o monto en UTM (multas laborales, SII, pensión, extranjería, herencias, patentes)
+function rangoUI(id,opts,def,nota,etq='UTM'){
+  return M('dm','Mes del documento')+S(id,'Qué indica el documento',[...opts,['ex','Un monto exacto en '+etq],['ra','Otro rango en '+etq]],def)+
+    G('g_ex',F('dex','Cantidad en '+etq,'1'))+G('g_ra',R2(F('dde','Desde '+etq,'1'),F('dha','Hasta '+etq,'2')))+OUT+NOTE(nota)}
+async function rangoCalc(id,mult=1){
+  const c=v(id);vis('g_ex',c==='ex');vis('g_ra',c==='ra');
+  const [a,b]=c==='ex'?[n('dex'),n('dex')]:c==='ra'?[n('dde'),n('dha')]:c.split('|').map(Number);
+  const u=await H(utmOf(v('dm')));if(!u)return show([['Sin UTM para ese mes','—']]);
+  show([a===b?['Equivalente',clp(a*u*mult),'tot']:['Mínimo',clp(a*u*mult)],a===b?null:['Máximo',clp(b*u*mult),'tot'],
+    [mult===12?'1 UTA · '+ymTxt(v('dm')):'1 UTM · '+ymTxt(v('dm')),clp(u*mult)],['Cálculo',`${nf(a,4)}${a===b?'':' a '+nf(b,4)} × ${clp(u*mult)}`]]);
+}
+tool_('laboral','multas','Multas laborales (DT)',()=>rangoUI('lt',[['1|10','1 a 49 trabajadores · 1 a 10 UTM'],['2|40','50 a 199 trabajadores · 2 a 40 UTM'],['3|60','200 o más · 3 a 60 UTM']],'1|10',
+  `Rango general del art. 506 del ${L(SRC.bcn_ct,'Código del Trabajo')}. La resolución de la Dirección del Trabajo prevalece; hay infracciones con sanciones especiales.`),()=>rangoCalc('lt'));
+tool_('multasii','multas','Multas tributarias SII',()=>rangoUI('sii',[['1|12','F29 sin movimiento fuera de plazo · 1 a 12 UTM']],'1|12',
+  'El SII informa un rango de 1 UTM a 1 UTA para declaraciones sin movimiento presentadas fuera de plazo. Con impuesto adeudado, el SII calcula reajustes, intereses y multas al declarar.'),()=>rangoCalc('sii'));
+tool_('pension','multas','Pensión de alimentos en UTM',()=>M('dm','Mes del pago')+F('dex','Cantidad indicada en la resolución (UTM)','1')+OUT+
+  NOTE('La ley exige fijar la pensión en UTM: multiplica la cantidad por la UTM del período del pago. El tribunal calcula deudas y reajustes. '+L('https://www.chileatiende.gob.cl/fichas/81447','ChileAtiende')),
+  async()=>{const u=await H(utmOf(v('dm'))),q=n('dex');show(u?[['Equivalente',clp(q*u),'tot'],['1 UTM · '+ymTxt(v('dm')),clp(u)]]:[['Sin UTM para ese mes','—']])});
+tool_('extranjeria','multas','Monto de una resolución de Extranjería',()=>M('dm','Mes de la resolución')+F('dex','Cantidad en UTM indicada por SERMIG','1')+OUT+
+  NOTE('SERMIG calcula la multa según causal y antecedentes; aquí solo se convierte la cifra que ya indicó. Compara con el portal oficial antes de pagar. '+L('https://serviciomigraciones.cl','SERMIG')),
+  async()=>{const u=await H(utmOf(v('dm'))),q=n('dex');show(u?[['Equivalente',clp(q*u),'tot'],['1 UTM · '+ymTxt(v('dm')),clp(u)]]:[['Sin UTM para ese mes','—']])});
+tool_('herencia','multas','UTA para herencias',()=>M('dm','Mes aplicable')+F('dex','Cantidad en UTA','1')+OUT+
+  NOTE('Solo convierte UTA a pesos (1 UTA = 12 UTM del mes). El impuesto a la herencia depende de base, parentesco, exenciones y tramos progresivos.'),
+  async()=>{const u=await H(utmOf(v('dm'))),q=n('dex');show(u?[['Resultado',clp(q*u*12),'tot'],['1 UTA · '+ymTxt(v('dm')),clp(u*12)]]:[['Sin UTM para ese mes','—']])});
+tool_('patente','multas','Patente comercial',()=>M('dm','Mes')+F('pc','Capital propio tributario','100.000.000')+F('pt','Tasa municipal (por mil, ‰)','5')+OUT+
+  NOTE('La ley fija entre 2,5 y 5 por mil del capital propio, con mínimo 1 UTM y máximo 8.000 UTM al año; la municipalidad informa su tasa. No incluye derechos de aseo ni sucursales. '+L('https://www.sii.cl','SII')),
+  async()=>{const u=await H(utmOf(v('dm')));if(!u)return show([['Sin UTM para ese mes','—']]);
+    const raw=n('pc')*n('pt')/1000,p=Math.min(Math.max(raw,u),8000*u);
+    show([['Capital × tasa',clp(raw)],['Patente anual estimada',clp(p),'tot'],['Semestral',clp(p/2)],['Límites','1 a 8.000 UTM · '+clp(u)+' a '+clp(8000*u)]])});
+
+// Impuestos
+tool_('iva','imp','IVA (19%)',()=>S('im','Tengo el',[['neto','Valor neto'],['bruto','Valor bruto (con IVA)']],'neto')+F('ia','Monto en pesos','100.000')+OUT,
+  ()=>{const x=n('ia'),ne=v('im')==='neto'?x:x/1.19;show([['Valor neto',clp(ne)],['IVA (19%)',clp(ne*.19)],['Total (bruto)',clp(ne*1.19),'tot']])});
+tool_('honor','imp','Boleta de honorarios',()=>S('hm','Calcular desde',[['bruto','Monto bruto de la boleta'],['liq','Líquido que quiero recibir']],'bruto')+
+  R2(F('ha','Monto','100.000'),F('ht','Retención %',nf(LEY.HON[new Date().getFullYear()]||17)))+OUT+
+  NOTE('Retención 2025: 14,5% · 2026: 15,25% · 2027: 16% · 2028 en adelante: 17% (Ley 21.133). La retención se descuenta del bruto y la paga quien recibe la boleta. '+L('https://www.sii.cl','SII')),
+  ()=>{const t=n('ht')/100,a=n('ha');let b,r;if(v('hm')==='bruto'){b=a;r=Math.round(a*t)}else{b=Math.round(a/(1-t));r=b-a}
+    show([['Monto bruto (emitir por)',clp(b),'tot'],['Retención '+nf(t*100)+'%',clp(r)],['Líquido',clp(b-r),'tot']])});
+tool_('f29','imp','Simulador F29',()=>'<p class="flab">IVA del mes (montos con IVA incluido)</p>'+R2(F('fv','Ventas afectas','0'),F('fc','Compras con crédito','0'))+
+  F('fr','Remanente de crédito reajustado (código 504)','0')+'<p class="flab">PPM y retenciones</p>'+R2(F('fb','Base PPM','0'),F('ft','Tasa PPM %','0'))+
+  R2(F('fh','Retención de honorarios','0'),F('fi','Impuesto único retenido','0'))+OUT+
+  NOTE('Subtotal orientativo, no el F29 oficial: no incluye exenciones, proporcionalidad, notas de crédito, cambio de sujeto, reajustes ni multas. Revisa la propuesta del SII.'),
+  ()=>{const db=n('fv')/1.19*.19,cr=n('fc')/1.19*.19,iva=db-cr-n('fr'),ppm=n('fb')*n('ft')/100,ret=n('fh')+n('fi');
+    show([['IVA débito',clp(db)],['IVA crédito','−'+clp(cr)],['Remanente usado','−'+clp(n('fr'))],['IVA a pagar',clp(Math.max(iva,0))],
+      iva<0?['Remanente para el mes siguiente',clp(-iva)]:null,['PPM',clp(ppm)],['Retenciones',clp(ret)],['Subtotal',clp(Math.max(iva,0)+ppm+ret),'tot']])});
+
+// Sueldo y trabajo
+tool_('liquido','trab','Sueldo líquido',()=>liqUI('liq'),()=>{const r=liquidacion(liqParams(n('lb')));liqShow(r,[['Sueldo base',clp(n('lb'))]])});
+tool_('bruto','trab','Sueldo bruto (desde el líquido)',()=>liqUI('bruto'),()=>{
+  const t=n('lt');let lo=0,hi=Math.max(t*3,5e6);for(let i=0;i<60;i++){const m=(lo+hi)/2;liquidacion(liqParams(m)).liq<t?lo=m:hi=m}
+  const b=Math.round(hi),r=liquidacion(liqParams(b));liqShow(r,[['Sueldo base a pedir',clp(b),'tot']])});
+tool_('horas','trab','Horas extra',()=>F('hb','Sueldo base mensual','800.000')+R2(F('hj','Jornada semanal (h)',JMAX()),F('hh','Horas extra','10'))+
+  R2(F('hr','Recargo %','50'),S('hd','Día',[['n','Normal'],['dom','Domingo en comercio (+30%)']],'n'))+OUT+
+  NOTE(`Art. 32 del ${L(SRC.bcn_ct,'Código del Trabajo')}: recargo mínimo 50% sobre la hora ordinaria = sueldo ÷ 30 × 28 ÷ (jornada × 4). Si el sueldo es menor al mínimo proporcional a la jornada, se usa el mínimo.`),
+  ()=>{const j=n('hj')||JMAX(),piso=LEY.IMM*j/JMAX(),b=Math.max(n('hb'),piso),vh=b/30*28/(j*4),r=n('hr')/100,dom=v('hd')==='dom'?1.3:1,he=vh*dom*(1+r);
+    show([n('hb')<piso?['Base usada (mínimo legal)',clp(piso)]:null,['Valor hora ordinaria',clp(vh*dom)],['Valor hora extra',clp(he),'tot'],['Total '+nf(n('hh'),1)+' h',clp(he*n('hh')),'tot'],['Factor sobre el sueldo',nf(he/b,7)]])});
+tool_('jornada','trab','Ley 40 horas',()=>R2(F('jh','Horas de tu contrato','44'),S('jd','Días por semana',[[5,'Cinco'],[6,'Seis']],5))+D('jf','Fecha')+OUT+
+  '<table class="tbl" id="jt"></table>'+NOTE(`Ley 21.561: la rebaja no autoriza bajar el sueldo y rige sin firmar anexo. ${L('https://www.dt.gob.cl/portal/1626/w3-channel.html','DT')}`),
+  ()=>{const f=v('jf'),mx=JMAX(f),h=n('jh'),nu=Math.min(h,mx),dif=h-nu,d=+v('jd');
+    show([['Jornada máxima al '+f.split('-').reverse().join('-'),mx+' h'],['Tu jornada',nf(nu,1)+' h','tot'],dif>0?['Rebaja',nf(dif,1)+' h']:null,
+      dif>0?['Reparto sin acuerdo',d===5?'1 h menos al final de la jornada en dos días distintos':'50 min en dos días distintos y 20 min en un tercero']:null,
+      dif>0?['Tu hora vale',nf((h/nu-1)*100,1)+'% más']:null]);
+    el('jt').innerHTML=tabla(['Desde','Jornada máxima'],[['Antes de la ley','45 h'],['26-04-2024','44 h'],['26-04-2026','42 h'],['26-04-2028','40 h']])});
+tool_('grati','trab','Gratificación legal',()=>F('gb','Sueldo base','800.000')+R2(F('gh','Horas extra ($)','0'),F('gc','Comisiones y bonos','0'))+OUT+
+  NOTE('Art. 50: 25% de lo devengado en remuneraciones, con tope anual de 4,75 ingresos mínimos (mensualizado: '+clp(4.75*LEY.IMM/12)+'). Alternativa del art. 47: 30% de las utilidades repartido.'),
+  ()=>{const rem=n('gb')+n('gh')+n('gc'),t=4.75*LEY.IMM/12;show([['25% de la remuneración',clp(rem*.25)],['Tope mensual',clp(t)],['Gratificación',clp(gratLegal(rem)),'tot'],['El tope aplica desde',clp(t/.25)+' de remuneración']])});
+tool_('semana','trab','Semana corrida',()=>R2(S('sd','Días por semana',[1,2,3,4,5,6],5),F('sl','Días laborables del período','22'))+
+  R2(F('sf','Domingos y festivos','4'),F('sx','Festivos en días de trabajo','0'))+R2(F('sk','Días con licencia o permiso','0'),F('sc','Comisiones del período','300.000'))+OUT+
+  NOTE('Art. 45: remuneración variable ÷ días que debió trabajar × domingos y festivos. Las ausencias injustificadas no se descuentan. Con jornada en menos de 5 días no corresponde (criterio DT).'),
+  ()=>{if(+v('sd')<5)return show([['No corresponde','jornada de menos de 5 días']]);
+    const d=n('sl')-n('sx')-n('sk');if(d<=0)return show([['Revisa los días','—']]);
+    const p=n('sc')/d;show([['Días que debió trabajar',nf(d,0)],['Promedio por día',clp(p)],['Semana corrida',clp(p*n('sf')),'tot']])});
+tool_('asig','trab','Asignación familiar',()=>F('ai','Ingreso mensual','600.000')+R2(F('ac','Cargas','1'),F('av','Cargas por invalidez','0'))+OUT+'<table class="tbl" id="at"></table>'+
+  NOTE(`Montos desde el 1 de mayo de 2026 (${L('https://www.dt.gob.cl/portal/1628/w3-article-85651.html','DT')}). La carga por invalidez vale el doble.`),
+  ()=>{const r=asigFam(n('ai'),n('ac'),n('av'));show([['Monto por carga',clp(r.m)],['Total mensual',clp(r.tot),'tot']]);
+    el('at').innerHTML=tabla(['Ingreso mensual','Por carga'],[['Hasta '+clp(LEY.ASIG[0][0]),clp(LEY.ASIG[0][1])],['Hasta '+clp(LEY.ASIG[1][0]),clp(LEY.ASIG[1][1])],['Hasta '+clp(LEY.ASIG[2][0]),clp(LEY.ASIG[2][1])],['Sobre '+clp(LEY.ASIG[2][0]),'$0']])});
+
+// Finiquito
+const CAUS=[['161-1','161 n.º 1 · Necesidades de la empresa'],['161-2','161 inc. 2 · Desahucio'],['159-1','159 n.º 1 · Mutuo acuerdo'],['159-2','159 n.º 2 · Renuncia'],
+  ['159-3','159 n.º 3 · Muerte del trabajador'],['159-4','159 n.º 4 · Vencimiento del plazo'],['159-5','159 n.º 5 · Conclusión de la obra o faena'],['159-6','159 n.º 6 · Caso fortuito o fuerza mayor'],
+  ['160-1','160 n.º 1 · Conductas indebidas graves'],['160-2','160 n.º 2 · Negociaciones prohibidas'],['160-3','160 n.º 3 · Inasistencia injustificada'],['160-4','160 n.º 4 · Abandono del trabajo'],
+  ['160-5','160 n.º 5 · Actos que afectan la seguridad'],['160-6','160 n.º 6 · Perjuicio material intencional'],['160-7','160 n.º 7 · Incumplimiento grave']];
+const CAUS_TBL=tabla(['Causal','Indemnización','Si es injustificado'],[
+  ['161 (necesidades, desahucio)','Años de servicio y aviso previo','+30%'],['159 n.º 4, 5, 6','No (obra o faena: 2,5 días por mes)','+50%'],
+  ['159 n.º 1, 2, 3','No','—'],['160','No','+80% (+100% en n.º 1 y 5 sin motivo plausible)']]);
+tool_('finiquito','trab','Finiquito',()=>S('fc','Causal de término',CAUS,'161-1')+R2(D('fi','Inicio del contrato','2020-03-01'),D('ff','Término'))+
+  G('g_fa',D('fa','Fecha del aviso'))+R2(F('fs','Sueldo base','900.000'),F('fv','Promedio variable 3 meses','0'))+
+  R2(S('fg','Gratificación',[['legal','Legal mensual'],['no','No mensual']],'legal'),F('fm','Colación y movilización','0'))+
+  R2(F('fp','Vacaciones pendientes (días hábiles)','0'),S('fz','Feriado anual',[[15,'15 días'],[20,'20 · zona extrema']],15))+
+  R2(F('fd','Días trabajados sin pagar','0'),S('fr','Simular recargo judicial (art. 168)',[['no','No'],['si','Sí']],'no'))+
+  S('f81','Contratado antes del 14-08-1981',[['no','No'],['si','Sí (sin tope de 11 años)']],'no')+OUT+
+  `<details style="margin-top:10px"><summary class="flab">Causales y sus efectos</summary><table class="tbl">${CAUS_TBL}</table></details>`+
+  NOTE(`Arts. 159-163, 168, 172 y 73 del ${L(SRC.bcn_ct,'Código del Trabajo')}. Base de indemnización con tope de 90 UF; años de servicio con tope de 11. Las vacaciones se pasan a días corridos sumando sábados y domingos (no descuenta feriados). Pagar en máximo 10 días hábiles.`),
+  ()=>{
+  const c=v('fc'),es161=c.startsWith('161'),uf=R.UF||40000;vis('g_fa',es161);
+  const i=new Date(v('fi')+'T12:00:00'),f=new Date(v('ff')+'T12:00:00');if(!(f>i))return show([['Revisa las fechas','—']]);
+  let me=(f.getFullYear()-i.getFullYear())*12+f.getMonth()-i.getMonth(),dd=f.getDate()-i.getDate()+1;if(dd<0){me--;dd+=30}if(dd>=30){me++;dd-=30}
+  const anos=Math.floor(me/12),fr=me%12;let ias=me>=12?anos+(fr>6||(fr===6&&dd>0)?1:0):0;if(v('f81')!=='si')ias=Math.min(ias,11);
+  const varm=n('fv'),gr=v('fg')==='legal'?gratLegal(n('fs')+varm):0,rem=n('fs')+varm+gr+n('fm'),tope=Math.min(rem,90*uf),diaria=(n('fs')+varm)/30;
+  let iasM=0,aviso=0,ts=0,rec=0;const injust=v('fr')==='si';
+  if(es161||injust&&!/^159-[123]$/.test(c)){iasM=tope*ias;const fa=new Date((v('fa')||v('ff'))+'T12:00:00');aviso=!es161||(f-fa)/864e5<30?tope:0}
+  if(c==='159-5'&&me>=1&&!injust)ts=tope/30*2.5*(me+(dd>15?1:0));
+  if(injust){const p=es161?.3:c.startsWith('159')?(/^159-[123]$/.test(c)?0:.5):.8;rec=iasM*p}
+  // vacaciones: hábiles pendientes + proporcionales desde el último aniversario, pasados a corridos
+  const an=new Date(i);an.setFullYear(i.getFullYear()+anos);const dAn=Math.max(0,(f-an)/864e5);
+  const prop=+v('fz')/365*dAn,hab=n('fp')+prop;let x=new Date(f),h=hab,cor=0;
+  while(h>0){x=new Date(+x+864e5);const w=x.getDay();if(w===0||w===6)cor++;else{cor+=Math.min(1,h);h-=1}}
+  const vac=cor*diaria,pend=n('fd')*rem/30;
+  show([['Tiempo servido',`${anos} años, ${fr} meses y ${dd} días`],['Remuneración base',clp(rem)+(rem>tope?' · tope 90 UF '+clp(tope):'')],
+    pend?['Remuneración pendiente',clp(pend)]:null,aviso?['Indemnización sustitutiva del aviso',clp(aviso)]:null,
+    iasM?[`Años de servicio (${ias})`,clp(iasM)]:null,ts?['Tiempo servido (obra o faena)',clp(ts)]:null,rec?['Recargo art. 168',clp(rec)]:null,
+    ['Vacaciones: '+nf(hab,2)+' hábiles = '+nf(cor,2)+' corridos',clp(vac)],['Total finiquito',clp(pend+aviso+iasM+ts+rec+vac),'tot']]);
+});
+tool_('vacprog','trab','Vacaciones y feriado progresivo',()=>R2(F('va','Años con empleadores anteriores','7'),F('vc','Años con el empleador actual','6'))+S('vz','Feriado básico',[[15,'15 días hábiles'],[20,'20 · zona extrema']],15)+OUT+
+  NOTE('Art. 68: con 10 años de trabajo (de los anteriores se cuentan hasta 10, acreditados con certificado de la AFP), 1 día adicional por cada 3 nuevos años. El progresivo se reinicia al cambiar de empleador.'),
+  ()=>{const t=Math.min(n('va'),10)+n('vc'),e=t>=10?Math.floor((t-10)/3):0;show([['Años computables',nf(t,1)],['Días progresivos',e],['Feriado anual',(+v('vz')+e)+' días hábiles','tot']])});
+tool_('minimo','trab','Sueldo mínimo',()=>F('mj','Jornada semanal (h)',JMAX())+S('ma','AFP para el líquido',AFPOPT,'Uno')+OUT+'<table class="tbl" id="mt"></table>'+
+  NOTE(`Ley 21.830, vigente desde el 1 de mayo de 2026 (${L('https://www.dt.gob.cl/portal/1628/w3-article-60141.html','DT')}). En jornada parcial el mínimo es proporcional a las horas.`),
+  ()=>{const j=n('mj')||JMAX(),b=LEY.IMM*j/JMAX();
+    const r=liquidacion({base:b,con:'ind',afp:v('ma'),gm:'no',gfix:0,he:0,jor:j,com:0,bon:0,ni:0,car:0,sa:'fonasa',isa:0,ot:0});
+    show([['Mínimo para '+nf(j,1)+' h',clp(b),'tot'],['Líquido aproximado (sin gratificación)',clp(r.liq)]]);
+    el('mt').innerHTML=tabla(['Trabajador','Mínimo'],[['18 a 65 años',clp(LEY.IMM)],['Menor de 18 o mayor de 65',clp(LEY.IMM18)],['Fines no remuneracionales',clp(LEY.IMMNR)]])});
+tool_('afp','trab','Comisiones AFP',()=>F('ab','Remuneración imponible','1.000.000')+OUT+
+  NOTE(`Comisión sobre la remuneración imponible, además del 10% obligatorio (${L('https://www.spensiones.cl','Superintendencia de Pensiones')}). ¿No sabes en qué AFP estás? ${L(SRC.afp,'Consúltalo con tu RUT en el sitio oficial')}.`),
+  ()=>{const b=Math.min(n('ab'),LEY.TOPE_AFP*(R.UF||40000));
+    el('out').innerHTML=tabla(['AFP','Comisión','Descuento total'],Object.entries(LEY.AFP).map(([k,c])=>[k,nf(c*100)+'%',clp(b*(.1+c))]))});
+tool_('causales','trab','Causales de despido',()=>`<table class="tbl">${CAUS_TBL}</table>`+'<table class="tbl" style="margin-top:12px">'+tabla(['Artículo','Causal'],CAUS.map(([k,t])=>[k,t.replace(/^\S+ \S+ · /,'').replace(/^\S+ inc\. 2 · /,'')]))+'</table>'+
+  NOTE(`Solo los arts. 159, 160 y 161 del ${L(SRC.bcn_ct,'Código del Trabajo')} permiten terminar un contrato. La renuncia y el mutuo acuerdo deben constar por escrito y ratificarse ante ministro de fe.`),()=>{});
+
+// Oro y plata
+const OZ=31.1034768, TOLA=11.6638038, KIL=[24,22,21.6,18,14,12,10,9,8];
+const monOpt=()=>['CLP','USD','EUR',...Object.keys(R).filter(c=>c.length===3&&!CRYPTO[c]&&!METAL[c]&&!['CLP','USD','EUR','UTM','UTA'].includes(c)&&!COMMOD[c]).sort()];
+const enMon=(clpv,m)=>{const x=clpv/(R[m]||1);return (m==='CLP'?'$':m+' ')+x.toLocaleString('es-CL',{maximumFractionDigits:x>=100?0:2})};
+tool_('oro','oro','Oro por quilate y peso',()=>S('om','Moneda',monOpt(),'CLP')+OUT+
+  '<p class="flab" style="margin-top:14px">¿Cuánto vale mi oro?</p>'+R2(F('og','Gramos','1'),S('ok','Quilates',KIL.map(k=>[k,nf(k,1)+'K']),18))+'<div class="big" id="or"></div>'+
+  NOTE('Precio spot del metal puro (gold-api.com, onza troy) convertido con el dólar observado. Una compraventa paga menos que el spot.'),
+  ()=>{const oz=R.XAU;if(!oz)return show([['Cargando precio del oro…','']]);const m=v('om'),g=oz/OZ;
+    el('out').innerHTML=tabla(['Quilates','Pureza','Por gramo'],KIL.map(k=>[nf(k,1)+'K',nf(k/24*1000,0)+'‰',enMon(g*k/24,m)]))+
+      `<tr><td>Onza troy 24K</td><td>31,1 g</td><td>${enMon(oz,m)}</td></tr><tr><td>Tola 24K</td><td>11,66 g</td><td>${enMon(g*TOLA,m)}</td></tr><tr><td>Kilo 24K</td><td>1.000 g</td><td>${enMon(g*1000,m)}</td></tr>`;
+    el('or').textContent=enMon(n('og')*g*v('ok')/24,m)});
+tool_('plata','oro','Plata por ley y peso',()=>S('pm','Moneda',monOpt(),'CLP')+OUT+NOTE('Precio spot de la plata (gold-api.com, onza troy). 925 = plata esterlina; 999 = fina.'),
+  ()=>{const oz=R.XAG;if(!oz)return show([['Cargando precio de la plata…','']]);const m=v('pm'),g=oz/OZ;
+    el('out').innerHTML=tabla(['Ley','Gramo','Onza','Kilo'],[999,958,925,900,835,800].map(l=>[l+'‰',enMon(g*l/1000,m),enMon(oz*l/1000,m),enMon(g*l,m)]))});
+tool_('metal','oro','Calculadora de metales',()=>R2(S('xm','Metal',[['XAU','Oro'],['XAG','Plata'],['XPT','Platino']],'XAU'),S('xmo','Moneda',monOpt(),'CLP'))+
+  R2(F('xp','Peso','10'),S('xu','Unidad',[['g','Gramos'],['oz','Onzas troy'],['kg','Kilos'],['tola','Tolas']],'g'))+F('xl','Pureza (milésimas, 1000 = puro)','750')+OUT+
+  NOTE('Quilates a milésimas: 24K = 1000, 22K = 917, 18K = 750, 14K = 585, 10K = 417.'),
+  ()=>{const oz=R[v('xm')];if(!oz)return show([['Cargando precio…','']]);
+    const g=n('xp')*({g:1,oz:OZ,kg:1000,tola:TOLA}[v('xu')]),fino=g*n('xl')/1000;
+    show([['Metal fino',nf(fino,3)+' g'],['Valor',enMon(fino*oz/OZ,v('xmo')),'tot'],['En dólares',enMon(fino*oz/OZ,'USD')]])});
+tool_('oromundo','oro','Oro en otras monedas',()=>OUT+NOTE('Mismo precio spot, expresado en la moneda de cada país.'),()=>{
+  const oz=R.XAU;if(!oz)return show([['Cargando precio del oro…','']]);
+  const L2=['USD','EUR','GBP','CHF','JPY','CNY','INR','AED','SAR','QAR','TRY','RUB','SGD','HKD','MYR','AUD','CAD','SEK','MXN','BRL','ARS','COP','PEN','BOB','UYU','PYG','VES','PAB','BSD','BZD'].filter(c=>R[c]);
+  el('out').innerHTML=tabla(['Moneda','Gramo 24K','Onza'],L2.map(c=>[flag(c)+' '+c,enMon(oz/OZ,c),enMon(oz,c)]))});
+
+// Monedas: tabla de montos y estadísticas del par de «Comparar»
+tool_('tabla','mon','Tabla de montos y estadísticas',()=>OUT+'<table class="tbl" id="ts" style="margin-top:12px"></table>'+NOTE('Usa el par y el período de «Comparar»: cámbialos ahí.'),()=>{
+  const r=R[cpA]/R[cpB],N=[1,5,10,20,50,100,250,500,1000,5000,10000,100000],f=x=>fmt(x,DEC(x));
+  if(!isFinite(r))return show([['Elige un par en Comparar','']]);
+  el('out').innerHTML=tabla([cpA,cpB,cpB,cpA],N.map(k=>[f(k),f(k*r),f(k),f(k/r)]));
+  if(cpData&&cpData.length>2){const s=cpData.map(p=>p[1]),ret=s.slice(1).map((x,i)=>Math.log(x/s[i])),mu=ret.reduce((a,b)=>a+b,0)/ret.length,
+    sd=Math.sqrt(ret.reduce((a,b)=>a+(b-mu)**2,0)/ret.length);
+    el('ts').innerHTML=tabla(['Estadística · '+cpDays+' días',cpA+' → '+cpB],[['Máximo',f(Math.max(...s))],['Mínimo',f(Math.min(...s))],['Promedio',f(s.reduce((a,b)=>a+b,0)/s.length)],
+      ['Variación',nf((s[s.length-1]/s[0]-1)*100,2)+'%'],['Volatilidad diaria',nf(sd*100,2)+'%']])}else el('ts').innerHTML='';
+});
+
+// Otras
+tool_('pct','otras','Porcentajes',()=>R2(F('pa','A','5'),F('pb','B','100'))+OUT,()=>{const a=n('pa'),b=n('pb');
+  show([[`${nf(a)}% de ${nf(b)}`,nf(a*b/100,4)],[`${nf(a)} es el … % de ${nf(b)}`,b?nf(a/b*100,4)+'%':'—'],[`${nf(a)} es el ${nf(b)}% de …`,b?nf(a*100/b,4):'—'],
+    [`Variación de ${nf(a)} a ${nf(b)}`,a?nf((b/a-1)*100,4)+'%':'—'],[`${nf(b)} + ${nf(a)}%`,nf(b*(1+a/100),4)],[`${nf(b)} − ${nf(a)}%`,nf(b*(1-a/100),4)]])});
+tool_('imc','otras','Índice de masa corporal',()=>R2(F('ip','Peso (kg)','70'),F('ia','Altura (cm)','170'))+OUT+NOTE('Clasificación OMS para adultos. El IMC es un indicador poblacional: no distingue masa muscular ni distribución de grasa.'),
+  ()=>{const h=n('ia')/100,i=h?n('ip')/h/h:0;
+    const c=i<16?'Delgadez severa':i<17?'Delgadez moderada':i<18.5?'Delgadez leve':i<25?'Normal':i<30?'Sobrepeso':i<35?'Obesidad I':i<40?'Obesidad II':'Obesidad III';
+    show([['IMC',nf(i,1)+' kg/m²','tot'],['Clasificación',c],['Peso normal para tu altura',nf(18.5*h*h,1)+' a '+nf(24.9*h*h,1)+' kg']])});
+const PI=Math.PI,R5=Math.sqrt(5),cot=x=>1/Math.tan(x),poly=(k,l)=>k*l*l/(4*Math.tan(PI/k));
+const FIG={
+ area:{'Círculo':[['r','Radio'],r=>PI*r*r],'Triángulo':[['b','Base'],['h','Altura'],(b,h)=>b*h/2],'Cuadrado':[['l','Lado'],l=>l*l],'Rectángulo':[['b','Base'],['h','Altura'],(b,h)=>b*h],
+  'Rombo':[['D','Diagonal mayor'],['d','Diagonal menor'],(D,d)=>D*d/2],'Romboide':[['b','Base'],['h','Altura'],(b,h)=>b*h],'Trapecio':[['B','Base mayor'],['b','Base menor'],['h','Altura'],(B,b,h)=>(B+b)*h/2],
+  'Pentágono regular':[['l','Lado'],l=>poly(5,l)],'Hexágono regular':[['l','Lado'],l=>poly(6,l)],'Octágono regular':[['l','Lado'],l=>poly(8,l)],
+  'Elipse':[['a','Semieje mayor'],['b','Semieje menor'],(a,b)=>PI*a*b],'Cilindro (total)':[['r','Radio'],['h','Altura'],(r,h)=>2*PI*r*(r+h)],
+  'Cono (total)':[['r','Radio'],['h','Altura'],(r,h)=>PI*r*(r+Math.hypot(r,h))],'Cubo (total)':[['a','Arista'],a=>6*a*a],'Esfera':[['r','Radio'],r=>4*PI*r*r]},
+ vol:{'Esfera':[['r','Radio'],r=>4/3*PI*r**3],'Semiesfera':[['r','Radio'],r=>2/3*PI*r**3],'Elipsoide':[['a','Semieje a'],['b','Semieje b'],['c','Semieje c'],(a,b,c)=>4/3*PI*a*b*c],
+  'Cilindro (recto u oblicuo)':[['r','Radio'],['h','Altura'],(r,h)=>PI*r*r*h],'Cilindro hueco':[['R','Radio exterior'],['r','Radio interior'],['h','Altura'],(R,r,h)=>PI*h*(R*R-r*r)],
+  'Cono (recto u oblicuo)':[['r','Radio'],['h','Altura'],(r,h)=>PI*r*r*h/3],'Cono truncado':[['R','Radio mayor'],['r','Radio menor'],['h','Altura'],(R,r,h)=>PI*h/3*(R*R+R*r+r*r)],
+  'Toro':[['R','Radio mayor'],['r','Radio del tubo'],(R,r)=>2*PI*PI*R*r*r],'Cápsula':[['r','Radio'],['a','Largo del cilindro'],(r,a)=>PI*r*r*(4/3*r+a)],
+  'Cubo':[['a','Arista'],a=>a**3],'Tetraedro':[['a','Arista'],a=>a**3/(6*Math.SQRT2)],'Octaedro':[['a','Arista'],a=>Math.SQRT2/3*a**3],
+  'Dodecaedro':[['a','Arista'],a=>(15+7*R5)/4*a**3],'Icosaedro':[['a','Arista'],a=>5*(3+R5)/12*a**3],
+  'Pirámide triangular':[['b','Base del triángulo'],['t','Altura del triángulo'],['h','Altura'],(b,t,h)=>b*t/2*h/3],'Pirámide cuadrada':[['l','Lado'],['h','Altura'],(l,h)=>l*l*h/3],
+  'Pirámide rectangular':[['a','Largo'],['b','Ancho'],['h','Altura'],(a,b,h)=>a*b*h/3],'Pirámide pentagonal':[['l','Lado'],['h','Altura'],(l,h)=>poly(5,l)*h/3],
+  'Pirámide hexagonal':[['l','Lado'],['h','Altura'],(l,h)=>poly(6,l)*h/3],'Prisma triangular':[['b','Base del triángulo'],['t','Altura del triángulo'],['L','Largo'],(b,t,L)=>b*t/2*L],
+  'Prisma rectangular':[['a','Largo'],['b','Ancho'],['c','Alto'],(a,b,c)=>a*b*c],'Prisma trapezoidal':[['B','Base mayor'],['b','Base menor'],['t','Altura del trapecio'],['L','Largo'],(B,b,t,L)=>(B+b)/2*t*L],
+  'Prisma romboidal':[['D','Diagonal mayor'],['d','Diagonal menor'],['L','Largo'],(D,d,L)=>D*d/2*L],'Prisma pentagonal':[['l','Lado'],['L','Largo'],(l,L)=>poly(5,l)*L],
+  'Prisma hexagonal':[['l','Lado'],['L','Largo'],(l,L)=>poly(6,l)*L],'Prisma octagonal':[['l','Lado'],['L','Largo'],(l,L)=>poly(8,l)*L]}};
+function figTool(k,nom,tipo,u){tool_(k,'otras',nom,()=>S('gf','Figura',Object.keys(FIG[tipo]),Object.keys(FIG[tipo])[0])+'<div id="gp"></div>'+OUT,()=>{
+  const f=FIG[tipo][v('gf')],ps=f.slice(0,-1),gp=el('gp');
+  if(gp.dataset.f!==v('gf')){gp.dataset.f=v('gf');gp.innerHTML=R2(...ps.map(([p,l])=>F('gp_'+p,l,'1')))}
+  const x=f[f.length-1](...ps.map(([p])=>n('gp_'+p)));show([[nom,nf(x,4)+' '+u,'tot']])})}
+figTool('area','Áreas','area','u²');figTool('vol','Volúmenes','vol','u³');
+tool_('cient','otras','Calculadora científica',()=>T('ce','Expresión','2^10 + √(81) − sin(30)','autocomplete="off" autocapitalize="off" spellcheck="false"')+
+  S('cu','Ángulos',[['deg','Grados'],['rad','Radianes']],'deg')+
+  '<div class="chips" style="flex-wrap:wrap">'+['sin(','cos(','tan(','asin(','acos(','atan(','√(','∛(','ln(','log(','^','!','π','e','(',')','%','abs(','exp('].map(t=>`<button class="chip" onclick="cIns('${t}')">${t}</button>`).join('')+'</div>'+
+  '<div class="big" id="cr">—</div>'+NOTE('Operaciones: + − × ÷ ^ ! %, raíces, logaritmo natural (ln) y en base 10 (log). La coma o el punto sirven como decimal.'),
+  ()=>{el('cr').textContent=cEval(v('ce'),v('cu'))});
+function cIns(t){const e=el('ce'),p=e.selectionStart??e.value.length;e.value=e.value.slice(0,p)+t+e.value.slice(e.selectionEnd??p);e.focus();e.selectionStart=e.selectionEnd=p+t.length;runTool()}
+function cEval(s,u){
+  const k=u==='deg'?PI/180:1,fact=x=>{if(x<0||x%1)return NaN;let r=1;for(let i=2;i<=x;i++)r*=i;return r};
+  const env={sin:x=>Math.sin(x*k),cos:x=>Math.cos(x*k),tan:x=>Math.tan(x*k),asin:x=>Math.asin(x)/k,acos:x=>Math.acos(x)/k,atan:x=>Math.atan(x)/k,
+    ln:Math.log,log:Math.log10,sqrt:Math.sqrt,cbrt:Math.cbrt,abs:Math.abs,exp:Math.exp,fact,PI,E:Math.E};
+  let x=s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/,/g,'.').replace(/π/g,'PI').replace(/√/g,'sqrt').replace(/∛/g,'cbrt')
+    .replace(/\be\b/g,'E').replace(/\^/g,'**').replace(/(\d+(?:\.\d+)?)\s*%/g,'($1/100)');
+  while(/(\d+(?:\.\d+)?|\([^()]*\))!/.test(x))x=x.replace(/(\d+(?:\.\d+)?|\([^()]*\))!/,'fact($1)');
+  const ids=x.match(/[A-Za-z_]+/g)||[];
+  if(ids.some(i=>!(i in env))||/[^\d\s+\-*/().A-Za-z_]/.test(x))return 'Expresión no válida';
+  try{const r=Function(...Object.keys(env),'"use strict";return ('+x+')')(...Object.values(env));
+    return typeof r==='number'&&isFinite(r)?r.toLocaleString('es-CL',{maximumFractionDigits:10}):'Sin resultado'}catch(e){return '…'}
 }
 
-// Oro por gramo y quilate a partir de la onza troy al contado.
-const OZ=31.1034768, KILATES=[24,22,21.6,18,14,12,10,9,8];
-function oroUI(){
-  const oz=R.XAU;
-  if(!oz){el('tool').innerHTML='<div class="mini">Cargando precio del oro…</div>';return}
-  const g=oz/OZ;
-  el('tool').innerHTML=`<table class="tbl"><tr><th>Quilates</th><th>Pureza</th><th>CLP / gramo</th></tr>
-    ${KILATES.map(k=>`<tr><td>${k.toLocaleString('es-CL')}K</td><td>${(k/24*1000).toFixed(0)}‰</td><td>${clp(g*k/24)}</td></tr>`).join('')}
-    <tr><td>Onza troy 24K</td><td>31,1 g</td><td>${clp(oz)}</td></tr><tr><td>Kilo 24K</td><td>1000 g</td><td>${clp(g*1000)}</td></tr>
-    ${R.XAG?`<tr><td>Plata pura</td><td>1 g</td><td>${clp(R.XAG/OZ)}</td></tr>`:''}</table>
-    <p class="flab" style="margin-top:14px">¿Cuánto vale mi oro?</p>
-    <div class="frow"><input class="fld" id="oroG" inputmode="decimal" placeholder="Gramos" value="${oroG}" oninput="oroCalc()">
-    <select class="fld" id="oroK" onchange="oroCalc()">${KILATES.map(k=>`<option value="${k}"${k==oroK?' selected':''}>${k.toLocaleString('es-CL')}K</option>`).join('')}</select></div>
-    <div class="big" id="oroR"></div><div class="mini" style="text-align:left">Precio spot (metal puro), no lo que paga una compraventa.</div>`;
-  oroCalc();
+/* --- motor del panel --- */
+let tool=TD[LS.get('tool','iva')]?LS.get('tool','iva'):'iva', runId=0;
+function setCat(c){const k=LS.get('tcat_'+c,null);setTool(TD[k]&&TD[k].cat===c?k:Object.keys(TD).find(t=>TD[t].cat===c))}
+function setTool(k){if(!TD[k])return;tool=k;LS.set('tool',k);LS.set('tcat_'+TD[k].cat,k);tools()}
+function tools(){
+  const t=TD[tool];
+  el('tsel').innerHTML=CATS.map(([c,nm])=>`<button class="chip${c===t.cat?' on':''}" onclick="setCat('${c}')">${nm}</button>`).join('');
+  el('tsub').innerHTML=Object.keys(TD).filter(k=>TD[k].cat===t.cat).map(k=>`<option value="${k}"${k===tool?' selected':''}>${TD[k].nom}</option>`).join('');
+  el('tool').innerHTML=t.ui();
+  if(!t.nosave){const s=LS.get('tv_'+tool,{});for(const id in s){const e=el(id);if(e&&el('tool').contains(e))e.value=s[id]}}
+  runTool();
 }
-function oroCalc(){oroG=el('oroG').value;oroK=+el('oroK').value;el('oroR').textContent=clp(numv(oroG)*R.XAU/OZ*oroK/24)}
-
-// UTM del mes, UTA (12 UTM) y la serie mes a mes.
-async function utmUI(){
-  const u=R.UTM;
-  el('tool').innerHTML=`<table class="tbl"><tr class="tot"><td>1 UTM</td><td>${clp(u)}</td></tr><tr class="tot"><td>1 UTA</td><td>${clp(u*12)}</td></tr></table>
-    <p class="flab" style="margin-top:14px">Valor mes a mes</p><table class="tbl" id="utmT"><tr><td>Cargando…</td></tr></table>
-    <div class="mini" style="text-align:left">UTA = 12 UTM. La fija el SII según el IPC; UTM y UTA también están en la calculadora.</div>`;
-  const s=(await serie('utm',365)).slice(-13).reverse();
-  if(el('utmT'))el('utmT').innerHTML='<tr><th>Mes</th><th>UTM</th><th>UTA</th></tr>'+s.map(([t,v])=>{const d=new Date(t);
-    return `<tr><td>${MES[d.getMonth()]} ${d.getFullYear()}</td><td>${clp(v)}</td><td>${clp(v*12)}</td></tr>`}).join('');
+async function runTool(){
+  const t=TD[tool],id=++runId;
+  if(!t.nosave){const s={};el('tool').querySelectorAll('input[id],select[id],textarea[id]').forEach(e=>{if(!e.id.startsWith('gp_'))s[e.id]=e.value});LS.set('tv_'+tool,s)}
+  try{await t.calc(id)}catch(e){console.error(e)}
 }
-
-// Tabla de montos frecuentes para el par del comparador, en los dos sentidos.
-function tablaUI(){
-  const r=R[cpA]/R[cpB], N=[1,5,10,20,50,100,250,500,1000,5000,10000,100000];
-  if(!isFinite(r)){el('tool').innerHTML='<div class="mini">Elige un par en Comparar.</div>';return}
-  const f=v=>fmt(v,DEC(v));
-  el('tool').innerHTML=`<div class="frow"><table class="tbl"><tr><th>${cpA}</th><th>${cpB}</th></tr>
-    ${N.map(n=>`<tr><td>${f(n)}</td><td>${f(n*r)}</td></tr>`).join('')}</table>
-    <table class="tbl"><tr><th>${cpB}</th><th>${cpA}</th></tr>${N.map(n=>`<tr><td>${f(n)}</td><td>${f(n/r)}</td></tr>`).join('')}</table></div>
-    <div class="mini" style="text-align:left">Usa el par de “Comparar”: cámbialo ahí.</div>`;
-}
+el('tool').addEventListener('input',e=>{if(e.target.closest('[onclick]'))return;runTool()});
 
 /* ---------- carga ---------- */
 function apply(rates,when){R=rates;cards();fillPick();rows();el('st').textContent=when}
