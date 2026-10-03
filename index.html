@@ -780,6 +780,14 @@ async function ipcSerie(days){
     if(x!=null)s.push([+d,x])}
   return s;
 }
+// Feriados legales de Chile: api.boostr.cl (respaldo date.nager.at). La API del gobierno no acepta llamadas externas.
+const isoD=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const FER={};
+function feriados(y){
+  return FER[y]||(FER[y]=fetch(`https://api.boostr.cl/holidays/${y}.json`).then(r=>r.json()).then(r=>r.data.map(x=>({d:x.date,t:x.title,irr:!!x.inalienable})))
+    .catch(()=>fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/CL`).then(r=>r.json()).then(r=>r.filter(x=>x.global).map(x=>({d:x.date,t:x.localName,irr:false}))))
+    .catch(()=>{delete FER[y];return []}));
+}
 function bajar(nombre,filas){
   const csv=filas.map(f=>f.map(c=>/[;"\n]/.test(c)?`"${String(c).replace(/"/g,'""')}"`:c).join(';')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));
@@ -838,7 +846,7 @@ function liqShow(r,extra=[]){
 // Un cálculo que sigue esperando datos cuando ya se cambió de herramienta se queda detenido y no escribe.
 const H=p=>{const me=runId;return Promise.resolve(p).then(x=>me===runId?x:new Promise(()=>{}))};
 /* --- herramientas: [categoría, nombre, ui, cálculo] --- */
-const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['oro','Oro y plata'],['mon','Monedas'],['otras','Otras']];
+const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['fin','Créditos y ahorro'],['cal','Calendario'],['oro','Oro y plata'],['mon','Monedas'],['otras','Otras']];
 const TD={};
 const tool_=(k,cat,nom,ui,calc,o={})=>TD[k]=Object.assign({cat,nom,ui,calc},o);
 
@@ -1128,8 +1136,8 @@ tool_('finiquito','trab','Finiquito',()=>S('fc','Causal de término',CAUS,'161-1
   R2(F('fd','Días trabajados sin pagar','0'),S('fr','Simular recargo judicial (art. 168)',[['no','No'],['si','Sí']],'no'))+
   S('f81','Contratado antes del 14-08-1981',[['no','No'],['si','Sí (sin tope de 11 años)']],'no')+OUT+
   `<details style="margin-top:10px"><summary class="flab">Causales y sus efectos</summary><table class="tbl">${CAUS_TBL}</table></details>`+
-  NOTE(`Arts. 159-163, 168, 172 y 73 del ${L(SRC.bcn_ct,'Código del Trabajo')}. Base de indemnización con tope de 90 UF; años de servicio con tope de 11. Las vacaciones se pasan a días corridos sumando sábados y domingos (no descuenta feriados). Pagar en máximo 10 días hábiles.`),
-  ()=>{
+  NOTE(`Arts. 159-163, 168, 172 y 73 del ${L(SRC.bcn_ct,'Código del Trabajo')}. Base de indemnización con tope de 90 UF; años de servicio con tope de 11. Las vacaciones se pasan a días corridos sumando sábados, domingos y feriados. Pagar en máximo 10 días hábiles.`),
+  async()=>{
   const c=v('fc'),es161=c.startsWith('161'),uf=R.UF||40000;vis('g_fa',es161);
   const i=new Date(v('fi')+'T12:00:00'),f=new Date(v('ff')+'T12:00:00');if(!(f>i))return show([['Revisa las fechas','—']]);
   let me=(f.getFullYear()-i.getFullYear())*12+f.getMonth()-i.getMonth(),dd=f.getDate()-i.getDate()+1;if(dd<0){me--;dd+=30}if(dd>=30){me++;dd-=30}
@@ -1142,7 +1150,8 @@ tool_('finiquito','trab','Finiquito',()=>S('fc','Causal de término',CAUS,'161-1
   // vacaciones: hábiles pendientes + proporcionales desde el último aniversario, pasados a corridos
   const an=new Date(i);an.setFullYear(i.getFullYear()+anos);const dAn=Math.max(0,(f-an)/864e5);
   const prop=+v('fz')/365*dAn,hab=n('fp')+prop;let x=new Date(f),h=hab,cor=0;
-  while(h>0){x=new Date(+x+864e5);const w=x.getDay();if(w===0||w===6)cor++;else{cor+=Math.min(1,h);h-=1}}
+  const fer=new Set([...await H(feriados(f.getFullYear())),...await H(feriados(f.getFullYear()+1))].map(z=>z.d));
+  while(h>0){x=new Date(+x+864e5);const w=x.getDay();if(w===0||w===6||fer.has(isoD(x)))cor++;else{cor+=Math.min(1,h);h-=1}}
   const vac=cor*diaria,pend=n('fd')*rem/30;
   show([['Tiempo servido',`${anos} años, ${fr} meses y ${dd} días`],['Remuneración base',clp(rem)+(rem>tope?' · tope 90 UF '+clp(tope):'')],
     pend?['Remuneración pendiente',clp(pend)]:null,aviso?['Indemnización sustitutiva del aviso',clp(aviso)]:null,
@@ -1251,6 +1260,94 @@ function cEval(s,u){
   try{const r=Function(...Object.keys(env),'"use strict";return ('+x+')')(...Object.values(env));
     return typeof r==='number'&&isFinite(r)?r.toLocaleString('es-CL',{maximumFractionDigits:10}):'Sin resultado'}catch(e){return '…'}
 }
+
+// Créditos y ahorro
+let CRED=[];
+tool_('credito','fin','Crédito hipotecario',()=>R2(F('cv','Valor de la propiedad (UF)','4.000'),F('cp','Pie (%)','20'))+R2(F('ct','Tasa anual (%)','4,5'),F('cn','Plazo (años)','25'))+
+  R2(F('cd','Desgravamen (% mensual del saldo)','0,02'),F('ci','Incendio y sismo (UF al mes)','0,8'))+OUT+
+  '<p class="flab" style="margin-top:14px">Tabla por año <button class="chip" onclick="credCSV()">Descargar CSV</button></p><table class="tbl" id="ca"></table>'+
+  NOTE('Cuota fija (sistema francés) con tasa mensual = tasa anual ÷ 12, como los simuladores bancarios. Los seguros cambian por banco: usa los de tu cotización. Los bancos suelen pedir que el dividendo no supere el 25% de la renta.'),
+()=>{const uf=R.UF,V=n('cv'),P=V*n('cp')/100,C=V-P,i=n('ct')/1200,N=Math.round(n('cn')*12);if(!(C>0&&N>0))return show([['Revisa los datos','—']]);
+  const q=i?C*i/(1-Math.pow(1+i,-N)):C/N;let s=C,tI=0,tS=0,yI=0,yA=0,yS=0;CRED=[];
+  for(let k=1;k<=N;k++){const it=s*i,am=q-it,sg=s*n('cd')/100+n('ci');s-=am;tI+=it;tS+=sg;yI+=it;yA+=am;yS+=sg;
+    if(k%12===0||k===N){CRED.push([Math.ceil(k/12),nf(yA,2),nf(yI,2),nf(yS,2),nf(Math.max(s,0),2)]);yI=yA=yS=0}}
+  const d1=q+C*n('cd')/100+n('ci'),u=x=>nf(x,2)+' UF · '+clp(x*uf);
+  show([['Crédito',u(C)],['Pie',u(P)],['Dividendo sin seguros',u(q),'tot'],['Primer dividendo con seguros',u(d1),'tot'],['Renta mínima sugerida (25%)',clp(d1*uf/.25)],
+    ['Total intereses',u(tI)],['Total seguros',u(tS)],['Total pagado',u(C+tI+tS),'tot']]);
+  el('ca').innerHTML=tabla(['Año','Amortización','Interés','Seguros','Saldo UF'],CRED)});
+function credCSV(){bajar('credito-hipotecario.csv',[['Año','Amortización UF','Interés UF','Seguros UF','Saldo UF'],...CRED])}
+tool_('consumo','fin','Crédito de consumo o automotriz',()=>R2(F('km','Monto que recibes','5.000.000'),F('kn','Cuotas (meses)','36'))+
+  R2(F('kt','Tasa mensual (%)','1,5'),F('kg','Gastos notariales y otros','0'))+R2(S('kit','Impuesto de timbres',[['si','Incluir (0,066% mensual, tope 0,8%)'],['no','No incluir']],'si'),F('ks','Seguros mensuales','0'))+OUT+
+  NOTE('El impuesto de timbres y los gastos se suman al crédito. CAE: tasa mensual que iguala lo que recibes con las cuotas totales (con seguros), multiplicada por 12, como la define la CMF. Compara siempre el CAE entre ofertas.'),
+()=>{const M=n('km'),N=Math.round(n('kn')),i=n('kt')/100;if(!(M>0&&N>0))return show([['Revisa los datos','—']]);
+  const ite=v('kit')==='si'?M*Math.min(.00066*N,.008):0,C=M+ite+n('kg'),Q=(i?C*i/(1-Math.pow(1+i,-N)):C/N)+n('ks');
+  let lo=0,hi=1;for(let k=0;k<100;k++){const r=(lo+hi)/2,pv=r?Q*(1-Math.pow(1+r,-N))/r:Q*N;pv>M?lo=r:hi=r}
+  show([['Impuesto de timbres',clp(ite)],['Monto del crédito',clp(C)],['Cuota mensual',clp(Q),'tot'],['Costo total',clp(Q*N),'tot'],['Intereses y cargos',clp(Q*N-M)],
+    ['CAE',nf(lo*1200,2)+'%','tot'],['Tasa anual compuesta',nf((Math.pow(1+i,12)-1)*100,2)+'%']])});
+async function ipc12(){const u=await H(ineUltimo());if(!u)return null;const [y,m]=u.split('-').map(Number);return await H(ipcVar(ym(y-1,m-1),u))}
+tool_('ahorro','fin','Ahorro e interés compuesto',()=>R2(F('ai0','Monto inicial','1.000.000'),F('aim','Aporte mensual','100.000'))+
+  R2(F('ait','Rentabilidad anual (%)','6'),F('ain','Años','10'))+F('aip','Inflación anual esperada (%) · vacío = IPC últimos 12 meses','')+OUT+
+  NOTE('Capitalización mensual con la tasa anual efectiva. Sin inflación escrita se usa la variación del IPC de los últimos 12 meses (INE). El valor real queda en pesos de hoy.'),
+async()=>{const inf=v('aip').trim()===''?((await ipc12())??3):n('aip');
+  const r=Math.pow(1+n('ait')/100,1/12)-1,N=Math.round(n('ain')*12);let s=n('ai0');for(let k=0;k<N;k++)s=s*(1+r)+n('aim');
+  const ap=n('ai0')+n('aim')*N;
+  show([['Monto final',clp(s),'tot'],['Total aportado',clp(ap)],['Intereses ganados',clp(s-ap)],['Inflación usada',nf(inf,1)+'% anual'],
+    ['Valor en pesos de hoy',clp(s/Math.pow(1+inf/100,N/12)),'tot'],['Rentabilidad real anual',nf(((1+n('ait')/100)/(1+inf/100)-1)*100,2)+'%']])});
+tool_('dap','fin','Depósito a plazo',()=>R2(F('pm2','Monto','1.000.000'),F('pd','Días','30'))+R2(F('pt2','Tasa base 30 días (%)','0,40'),S('pr','Veces que se renueva',[[1,'Una'],[3,'3'],[6,'6'],[12,'12']],1))+OUT+
+  NOTE('Los bancos informan la tasa por 30 días: interés = monto × tasa × días ÷ 30. Al renovar se reinvierte capital más intereses. La rentabilidad real compara con el IPC de los últimos 12 meses (INE).'),
+async()=>{const t=n('pt2')/100,d=n('pd')||30,k=+v('pr');let s=n('pm2');for(let j=0;j<k;j++)s+=s*t*d/30;
+  const an=(Math.pow(1+t*d/30,365/d)-1)*100,inf=await ipc12();
+  show([['Intereses',clp(s-n('pm2'))],['Monto final ('+nf(d*k,0)+' días)',clp(s),'tot'],['Tasa anual equivalente',nf(an,2)+'%'],
+    inf!=null?['Rentabilidad real anual (IPC '+nf(inf,1)+'%)',nf(((1+an/100)/(1+inf/100)-1)*100,2)+'%']:null])});
+
+// Operación Renta
+tool_('renta','imp','Operación Renta (global complementario)',()=>{const y=new Date().getFullYear();
+  return S('ry','Rentas del año',[y-1,y-2].map(a=>[a,a+' · año tributario '+(a+1)]),y-1)+
+  '<p class="flab">Sueldos (certificado del empleador, montos actualizados)</p>'+R2(F('rs','Renta tributable anual','0'),F('riu','Impuesto único retenido','0'))+
+  '<p class="flab">Boletas de honorarios</p>'+R2(F('rh','Honorarios brutos anuales','12.000.000'),F('rr','Retenciones · vacío = tasa del año',''))+
+  R2(S('rg','Gastos',[['pres','Presuntos: 30%, tope 15 UTA'],['efe','Efectivos']],'pres'),G('g_rg',F('rge','Gastos efectivos','0')))+
+  R2(F('ro','Otras rentas afectas','0'),F('rb','Rebajas (APV B, art. 55 bis)','0'))+F('rc','Cotizaciones de independiente pagadas con la retención (propuesta SII)','0')+OUT+
+  NOTE(`Tabla anual del impuesto global complementario en UTA de diciembre del año de las rentas (${L('https://www.sii.cl','SII')}). Las retenciones de honorarios pagan primero las cotizaciones de independiente; el resto se descuenta del impuesto. Orientativo: confirma con la propuesta del F22.`)},
+async()=>{const y=+v('ry');vis('g_rg',v('rg')==='efe');const u=await H(utmOf(y+'-12'));if(!u)return show([['Sin UTM de diciembre '+y,'—']]);
+  const uta=u*12,hon=n('rh'),ret=v('rr').trim()===''?Math.round(hon*(LEY.HON[y]||13.75)/100):n('rr');
+  const gas=v('rg')==='pres'?Math.min(hon*.3,15*uta):n('rge'),base=Math.max(0,n('rs')+hon-gas+n('ro')-n('rb')),igc=impUnico(base,uta),res=igc-n('riu')-ret+n('rc');
+  show([['UTA diciembre '+y,clp(uta)],['Gastos rebajados',clp(gas)],['Base imponible anual',clp(base)+' · '+nf(base/uta,2)+' UTA','tot'],['Impuesto global complementario',clp(igc)],
+    ['Crédito por impuesto único','−'+clp(n('riu'))],['Retenciones de honorarios'+(v('rr').trim()===''?' (estimadas)':''),'−'+clp(ret)],
+    n('rc')?['Cotizaciones con cargo a la retención',clp(n('rc'))]:null,[res>=0?'Resultado: a pagar':'Resultado: devolución',clp(Math.abs(res)),'tot']])});
+
+// Calendario
+tool_('calendario','cal','Calendario tributario y previsional',()=>S('cz','Mostrar',[[60,'Próximos 60 días'],[120,'Próximos 4 meses'],[365,'Próximos 12 meses']],120)+OUT+
+  NOTE('F29: día 12, o día 20 si es facturador electrónico o emite boletas electrónicas y declara por internet. Cotizaciones: día 10, o día 13 si se declaran y pagan en forma electrónica (sin prórroga). Si un vencimiento del SII o de las cotizaciones al día 10 cae en sábado, domingo, feriado o 31 de diciembre, pasa al día hábil siguiente (art. 36 del Código Tributario). Contribuciones, permisos y patentes: revisa prórrogas de la TGR o tu municipalidad.'),
+async()=>{const t=new Date();t.setHours(0,0,0,0);const lim=new Date(+t+(+v('cz'))*864e5),y=t.getFullYear();
+  const fer=new Set([...await H(feriados(y)),...await H(feriados(y+1))].map(f=>f.d));
+  const hab=d=>{while(d.getDay()===0||d.getDay()===6||fer.has(isoD(d))||(d.getMonth()===11&&d.getDate()===31))d=new Date(+d+864e5);return d};
+  const ev=[];
+  for(let k=0;k<14;k++){const m0=new Date(y,t.getMonth()+k,1),Y=m0.getFullYear(),M=m0.getMonth(),per=MES[(M+11)%12];
+    ev.push([hab(new Date(Y,M,12)),'F29 de '+per+' (IVA, PPM, retenciones)'],[hab(new Date(Y,M,20)),'F29 de '+per+' por internet (facturador electrónico)'],
+      [hab(new Date(Y,M,10)),'Cotizaciones de '+per+' (pago no electrónico)'],[new Date(Y,M,13),'Cotizaciones de '+per+' (Previred, electrónico)'],
+      [hab(new Date(Y,M,8)),'INE publica el IPC de '+per+' (fecha habitual)']);
+    if(M===3)ev.push([new Date(Y,3,1),'Comienza la Operación Renta '+Y],[hab(new Date(Y,3,30)),'Plazo del F22 (rentas '+(Y-1)+')']);
+    const ci=[3,5,8,10].indexOf(M);if(ci>=0)ev.push([new Date(Y,M+1,0),'Contribuciones: cuota '+(ci+1)+' de 4']);
+    if(M===2)ev.push([new Date(Y,2,31),'Permiso de circulación: total o 1ª cuota (autos particulares)']);
+    if(M===4)ev.push([new Date(Y,4,31),'Permiso de circulación: taxis y buses']);
+    if(M===7)ev.push([new Date(Y,7,31),'Permiso de circulación: 2ª cuota']);
+    if(M===8)ev.push([new Date(Y,8,30),'Permiso de circulación: vehículos de carga']);
+    if(M===0||M===6)ev.push([new Date(Y,M+1,0),'Patente comercial: cuota semestral (habitual)']);
+    if(M===3)ev.push([new Date(Y,3,30),'Gratificación anual (art. 47): plazo de pago']);
+  }
+  el('out').innerHTML=tabla(['Fecha','Vencimiento'],ev.filter(([d])=>d>=t&&d<=lim).sort((a,b)=>a[0]-b[0]).map(([d,x])=>{const dd=Math.round((d-t)/864e5);
+    return [d.toLocaleDateString('es-CL',{weekday:'short',day:'numeric',month:'short'}),x+(dd?' · en '+dd+' d':' · hoy')]}))});
+tool_('feriados','cal','Feriados de Chile',()=>{const y=new Date().getFullYear();return S('fy','Año',[y-1,y,y+1],y)+OUT+
+  NOTE('Feriados legales nacionales (api.boostr.cl, con respaldo en date.nager.at). En los irrenunciables cierra el comercio (Ley 19.973). Se usan en el finiquito, el calendario y los días hábiles.')},
+async()=>{const l=await H(feriados(+v('fy')));el('out').innerHTML=l.length?tabla(['Fecha','Feriado'],l.map(f=>[new Date(f.d+'T12:00').toLocaleDateString('es-CL',{weekday:'short',day:'numeric',month:'short'}),f.t+(f.irr?' · irrenunciable':'')])):'<tr><td>Sin conexión</td></tr>'});
+tool_('habiles','cal','Días hábiles entre fechas',()=>R2(D('ha1','Desde'),D('ha2','Hasta'))+F('han','Sumar días hábiles a «Desde»','10')+OUT+
+  NOTE('Hábiles: lunes a viernes sin feriados nacionales. El rango cuenta desde el día siguiente a «Desde» hasta «Hasta», inclusive.'),
+async()=>{const a=new Date(v('ha1')+'T12:00'),b=new Date(v('ha2')+'T12:00');const ys=new Set([a.getFullYear(),b.getFullYear(),a.getFullYear()+1]);
+  const fer=new Set();for(const y of ys)(await H(feriados(y))).forEach(f=>fer.add(f.d));
+  const ok=d=>d.getDay()%6!==0&&!fer.has(isoD(d));let h=0,c=0,f=0;
+  for(let d=new Date(+a+864e5);d<=b;d=new Date(+d+864e5)){c++;if(ok(d))h++;else if(fer.has(isoD(d))&&d.getDay()%6)f++}
+  let x=new Date(a),k=Math.round(n('han'));while(k>0){x=new Date(+x+864e5);if(ok(x))k--}
+  show([['Días corridos',c],['Días hábiles',h,'tot'],['Feriados en días de semana',f],[nf(n('han'),0)+' días hábiles después de «Desde»',x.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),'tot']])});
 
 /* --- motor del panel --- */
 let tool=TD[LS.get('tool','iva')]?LS.get('tool','iva'):'iva', runId=0;
