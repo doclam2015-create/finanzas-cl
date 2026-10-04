@@ -120,6 +120,11 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 /* flecha en todos los desplegables */
 select.fld,.add select,select.sel,.cfgrow select,.base select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;background-size:12px 8px;padding-right:32px}
 .base select{padding-right:24px;background-position:right 4px center}
+#thelp{text-align:left;margin:-2px 2px 12px;line-height:1.45;font-size:12.5px}
+.guia details{border-top:1px solid var(--line);padding:10px 0}
+.guia summary{cursor:pointer;list-style:none;line-height:1.4}.guia summary::-webkit-details-marker{display:none}
+.guia summary b{display:block;font-size:15px}.guia summary b::after{content:" \25BE";color:var(--dim)}.guia details[open] summary b::after{content:" \25B4"}.guia summary span{font-size:12.5px;color:var(--dim)}
+.guia p{margin:10px 0 0 10px;font-size:13px;line-height:1.45;color:var(--dim)}.guia p a{color:var(--blue);font-weight:700;text-decoration:none;font-size:14px}
 </style>
 </head>
 <body>
@@ -206,6 +211,7 @@ select.fld,.add select,select.sel,.cfgrow select,.base select{background-image:u
   <p class="ttl"><span>🧮 Herramientas</span></p>
   <div class="chips" id="tsel"></div>
   <select class="fld" id="tsub" onchange="setTool(this.value)" aria-label="Herramienta"></select>
+  <div class="mini" id="thelp"></div>
   <div id="tool"></div>
 </div>
 
@@ -1550,13 +1556,97 @@ async()=>{const a=new Date(v('ha1')+'T12:00'),b=new Date(v('ha2')+'T12:00');cons
   let x=new Date(a),k=Math.round(n('han'));while(k>0){x=new Date(+x+864e5);if(ok(x))k--}
   show([['Días corridos',c],['Días hábiles',h,'tot'],['Feriados en días de semana',f],[nf(n('han'),0)+' días hábiles después de «Desde»',x.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),'tot']])});
 
+/* --- guía en modo simple: qué hace cada sección y cada herramienta --- */
+const CATH={
+ ind:'Valores oficiales que cambian con el tiempo (UTM, UF, IPC) y cómo actualizar montos con ellos.',
+ multas:'Cuánto es en pesos una multa o un trámite que te cobran en UTM o UTA.',
+ imp:'Impuestos: IVA, boletas de honorarios, declaración mensual (F29) y anual (Renta).',
+ trab:'Todo lo del sueldo: cuánto te llega, horas extra, finiquito, vacaciones y derechos laborales.',
+ fin:'Préstamos, ahorro e inversiones: cuánto pagas, cuánto ganas y cuánto te come la inflación.',
+ cal:'Fechas importantes: cuándo pagar impuestos, feriados y cuántos días hábiles hay.',
+ oro:'Cuánto vale tu oro o plata según su pureza y peso.',
+ mon:'Tablas y estadísticas de las monedas que estás comparando.',
+ com:'Cuentas del día a día: porcentajes, propinas, ofertas y qué envase conviene.',
+ neg:'Para vender: a qué precio vender, cuánto ganas y cuánto IVA pagas.',
+ otras:'Calculadoras generales: IMC, áreas, volúmenes y científica.'};
+const HELP={
+ utmmes:'Te dice cuánto valía la UTM (o la UTA, que son 12 UTM) en el mes que elijas. Ej.: UTM de marzo 2020.',
+ ufdia:'El valor de la UF en cada día del mes. Útil para arriendos, dividendos o seguros en UF.',
+ fecha:'Cuánto valía el dólar, el euro, la UF o la UTM en un día exacto del pasado.',
+ planilla:'Pegas una lista de montos en UTM y te los pasa todos a pesos de una vez. Se puede descargar.',
+ reutm:'Actualiza un monto antiguo según cuánto subió la UTM. Ej.: $100.000 de 2018, ¿cuánto son hoy?',
+ ipc:'Actualiza un monto según la inflación oficial (IPC). Sirve para reajustar arriendos o deudas.',
+ proy:'Estima cuánto valdrá la UTM en los próximos meses (escenario bajo, medio y alto) para presupuestar.',
+ transito:'Cuánto podrías pagar por una multa de tránsito según la falta (velocidad, licencia, etc.).',
+ laboral:'Pasa a pesos una multa de la Dirección del Trabajo que viene en UTM. Escribe las UTM de la resolución y el mes del pago.',
+ multasii:'Pasa a pesos una multa del SII que viene en UTM, con la UTM del mes en que pagas.',
+ pension:'Pasa una pensión de alimentos fijada en UTM a pesos del mes.',
+ extranjeria:'Convierte a pesos el monto de una resolución de Extranjería.',
+ herencia:'Pasa a pesos montos de herencias expresados en UTA (1 UTA = 12 UTM). No calcula el impuesto completo.',
+ patente:'Estima la patente comercial anual: tu capital propio por la tasa de tu municipalidad (entre 2,5 y 5 por mil).',
+ iva:'Agrega o quita el IVA. Si tienes el precio sin IVA (neto) te da el total; si tienes el total te da el neto. Ej.: $100.000 neto = $119.000.',
+ honor:'Boleta de honorarios: cuánto te llega (líquido) si cobras un monto, o cuánto cobrar para recibir lo que quieres.',
+ f29:'Simula tu declaración mensual de IVA: IVA de ventas menos IVA de compras = lo que pagas.',
+ renta:'Estima tu impuesto anual (Operación Renta de abril) según lo que ganaste el año anterior.',
+ liquido:'Pones tu sueldo bruto y te dice cuánto te llega después de AFP, salud e impuesto.',
+ bruto:'Al revés: pones cuánto quieres recibir y te dice qué sueldo bruto pedir.',
+ horas:'Cuánto te deben pagar por tus horas extra (se pagan con 50% de recargo).',
+ jornada:'Cómo cambia tu jornada con la ley de 40 horas y en qué fechas.',
+ grati:'La gratificación legal: el bono que la empresa debe pagar sobre tu sueldo, con su tope.',
+ semana:'Si ganas comisiones, cuánto te deben pagar por domingos y festivos.',
+ asig:'Cuánto recibes de asignación familiar por cada carga según tu sueldo.',
+ finiquito:'Calcula tu finiquito: años de servicio, aviso previo, vacaciones pendientes.',
+ vacprog:'Cuántos días de vacaciones te corresponden, incluidos los días extra por antigüedad.',
+ minimo:'El sueldo mínimo vigente, proporcional a tus horas semanales, y cuánto queda líquido.',
+ afp:'Cuánto te descuenta cada AFP. Te muestra cuál es más barata.',
+ causales:'Las razones legales de despido del Código del Trabajo y qué pagos corresponden en cada una.',
+ oro:'Cuánto vale tu oro según quilates (18K, 14K...) y peso, al precio de hoy.',
+ plata:'Lo mismo para la plata, según su pureza (ley 925, 950...).',
+ metal:'Valor de oro, plata o platino según peso, unidad, pureza y moneda. Ej.: 18K = 750 milésimas.',
+ oromundo:'El precio del oro en otras monedas del mundo.',
+ tabla:'Tabla rápida de equivalencias y cómo se ha movido el par de monedas que comparas.',
+ pct:'Escribe dos números (A y B) y busca la fila que responde tu duda. Ej.: ¿cuánto es el 15% de 80.000?',
+ propina:'Pones la cuenta, la propina y cuántos son: te dice cuánto paga cada uno. Si anotas lo que comió cada uno (Ana 12.000), cada uno paga lo suyo.',
+ gastos:'Para viajes o asados: anotas cuánto pagó cada uno y te dice quién le transfiere a quién para quedar a mano.',
+ descuento:'Precio final con descuento, ofertas 2x1 o 3x2 y cupones. Ojo: 30% + 20% no es 50%, es 44%.',
+ unitario:'Compara envases de distinto tamaño. Te dice cuál sale más barato por kilo, litro o unidad.',
+ variacion:'Cuánto subió o bajó algo en porcentaje. Ej.: de $80.000 a $92.000 es +15%.',
+ fraccion:'Pasa entre fracción, decimal y porcentaje. Ej.: 3/8 = 0,375 = 37,5%.',
+ regla3:'Si 3 cuestan 1.500, ¿cuánto cuestan 5? Te da la respuesta directa y la inversa.',
+ recargo:'Cuánto subirle al costo para vender. Ej.: costo $10.000 + 40% = $14.000.',
+ margen:'Precio de venta para ganar un % de lo que vendes, y cuántas unidades vender para cubrir gastos fijos.',
+ comerciante:'Para tu negocio: a qué precio vender con IVA, cuánto IVA pagas al SII y cuánto ganas de verdad.',
+ imc:'Con tu peso y altura te dice si estás en peso normal, bajo o sobrepeso.',
+ area:'Superficie de una figura (círculo, rectángulo, triángulo...). Útil para pisos o pintura.',
+ vol:'Cuánto cabe en una forma (caja, cilindro, esfera...). Útil para estanques o maceteros.',
+ cient:'Calculadora con raíces, potencias, senos y logaritmos. Escribe la operación tal cual.',
+ credito:'Dividendo de un crédito hipotecario en UF: cuánto pagas al mes, en total y en intereses.',
+ consumo:'Cuota de un crédito de consumo o de auto, con impuestos y el CAE para comparar bancos.',
+ prestamo:'Cuota de cualquier préstamo y la tabla mes a mes. Prueba un abono extra para ver cuánto ahorras.',
+ ahorro:'Si ahorras todos los meses, cuánto juntas con intereses y cuánto valdrá en plata de hoy.',
+ dap:'Cuánto ganas con un depósito a plazo y si le ganas a la inflación.',
+ compuesto:'Cómo crece un monto cuando los intereses también ganan intereses. Incluye meta y tabla por año.',
+ crecim:'Suma bien varias subidas y bajadas seguidas. Ej.: +10% y luego −10% da −1%, no 0%.',
+ inflacion:'Cuánto valdrá tu plata en unos años por la inflación, o cuánto subió algo entre dos fechas.',
+ duplica:'Cuánto tarda en duplicarse un monto con cierta tasa. Ej.: al 6% anual, unos 12 años.',
+ calendario:'Fechas de pago de impuestos, cotizaciones, permiso de circulación y otros trámites.',
+ feriados:'Lista de feriados de Chile del año.',
+ habiles:'Cuántos días hábiles hay entre dos fechas, sin fines de semana ni feriados.'};
+let guia=false;
+function toggleGuia(){guia=!guia;tools()}
+function guiaHTML(cat){return '<div class="guia">'+CATS.map(([c,nm])=>`<details${c===cat?' open':''}><summary><b>${nm}</b> <span>${CATH[c]||''}</span></summary>`+
+  Object.keys(TD).filter(k=>TD[k].cat===c).map(k=>`<p><a href="#" onclick="guia=false;setTool('${k}');return false">${TD[k].nom}</a><br>${HELP[k]||''}</p>`).join('')+'</details>').join('')+
+  '<p class="mini">Toca el nombre de una herramienta para abrirla. Los campos con flecha ▾ son listas para elegir; los demás se escriben. Todo se calcula solo al escribir y la app recuerda lo último que pusiste.</p></div>'}
+
 /* --- motor del panel --- */
 let tool=TD[LS.get('tool','iva')]?LS.get('tool','iva'):'iva', runId=0;
 function setCat(c){const k=LS.get('tcat_'+c,null);setTool(TD[k]&&TD[k].cat===c?k:Object.keys(TD).find(t=>TD[t].cat===c))}
-function setTool(k){if(!TD[k])return;tool=k;LS.set('tool',k);LS.set('tcat_'+TD[k].cat,k);tools()}
+function setTool(k){if(!TD[k])return;guia=false;tool=k;LS.set('tool',k);LS.set('tcat_'+TD[k].cat,k);tools()}
 function tools(){
   const t=TD[tool];
-  el('tsel').innerHTML=CATS.map(([c,nm])=>`<button class="chip${c===t.cat?' on':''}" onclick="setCat('${c}')">${nm}</button>`).join('');
+  el('tsel').innerHTML=`<button class="chip${guia?' on':''}" onclick="toggleGuia()">？ Guía</button>`+CATS.map(([c,nm])=>`<button class="chip${c===t.cat&&!guia?' on':''}" onclick="setCat('${c}')">${nm}</button>`).join('');
+  vis('tsub',!guia);vis('thelp',!guia);el('thelp').innerHTML=HELP[tool]?'💡 '+HELP[tool]:'';
+  if(guia){el('tool').innerHTML=guiaHTML(t.cat);return}
   el('tsub').innerHTML=Object.keys(TD).filter(k=>TD[k].cat===t.cat).map(k=>`<option value="${k}"${k===tool?' selected':''}>${TD[k].nom}</option>`).join('');
   el('tool').innerHTML=t.ui();
   if(!t.nosave){const s=LS.get('tv_'+tool,{});for(const id in s){const e=el(id);if(e&&el('tool').contains(e))e.value=s[id]}}
@@ -1620,7 +1710,7 @@ async function cardSeries(){
 hchips();applyCfg();tools();load();hist().then(cardSeries);compare();
 // refresca al volver a la app
 // Versión publicada: si GitHub Pages ya tiene otra, se recarga saltándose la caché (max-age=600).
-const VER='2026.10.04-3';
+const VER='2026.10.04-4';
 async function chkVer(){if(!location.hostname.endsWith('github.io'))return;
   try{const t=await fetch(location.pathname+'?nv='+Date.now(),{cache:'no-store'}).then(r=>r.text()),m=t.match(/const VER='([^']+)'/);
     if(m&&m[1]!==VER&&sessionStorage.getItem('ver')!==m[1]){sessionStorage.setItem('ver',m[1]);location.replace(location.pathname+'?v='+m[1])}}catch(e){}}
