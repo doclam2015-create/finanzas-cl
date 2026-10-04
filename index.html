@@ -120,7 +120,8 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 /* flecha en todos los desplegables */
 select.fld,.add select,select.sel,.cfgrow select,.base select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;background-size:12px 8px;padding-right:32px}
 .base select{padding-right:24px;background-position:right 4px center}
-#zf td:nth-child(3),#qf td:nth-child(3),#pf td:nth-child(3),#zf th:nth-child(3),#qf th:nth-child(3),#pf th:nth-child(3){text-align:left;font-weight:400}
+#zf td:nth-child(3),#qf td:nth-child(3),#pf td:nth-child(3),#gf td:nth-child(3),#zf th:nth-child(3),#qf th:nth-child(3),#pf th:nth-child(3),#gf th:nth-child(3){text-align:left;font-weight:400}
+details.xtra{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}details.xtra summary{cursor:pointer;font-weight:700;font-size:14px;line-height:1.4}details.xtra[open] summary{margin-bottom:8px}
 b.cod{display:inline-block;background:var(--card2);border-radius:6px;padding:1px 5px;font-size:12px;color:var(--blue);margin:1px 0}
 .mgrid{display:grid;grid-template-columns:38px 1fr 1fr;gap:5px 6px;align-items:center;margin-bottom:8px}.mgrid .fld{margin:0;font-size:15px;padding:8px 10px}.mgrid .flab{margin:0}
 #tq{margin-bottom:8px;font-size:16px;font-weight:500}
@@ -1614,6 +1615,8 @@ async function factAct(Y){
 const MG=(p,r2)=>'<div class="mgrid"><span></span><span class="flab">Monto</span><span class="flab">'+r2+'</span>'+MES.map((m,i)=>
   `<span class="flab">${m.slice(0,3)}</span><input class="fld" id="${p}m${i}" inputmode="decimal" value=""><input class="fld" id="${p}r${i}" inputmode="decimal" value="" placeholder="auto">`).join('')+'</div>';
 
+// Impuesto adicional art. 42 D.L. 825: [clave, producto, tasa, código débito, códigos crédito recargado e imputable] (reverso F29, tasas Ley 20.780)
+const IA42=[['l','Licores, pisco, whisky y destilados',.315,'577','575 576'],['v','Vinos, champaña y chichas',.205,'32','574 33'],['c','Cervezas',.205,'150','580 149'],['b','Bebidas analcohólicas',.10,'146','582 85'],['a','Bebidas con alto contenido de azúcar',.18,'752','753 754']];
 // 1ª categoría · F29
 tool_('f29c','f1','F29 completo: IVA, PPM y retenciones',()=>M('zp','Período (mes que declaras)',curYM(-1))+
   '<p class="flab">Ventas del mes</p>'+
@@ -1638,44 +1641,81 @@ tool_('f29c','f1','F29 completo: IVA, PPM y retenciones',()=>M('zp','Período (m
   '<p class="flab">Retenciones</p>'+F('zh','Boletas de honorarios recibidas en el mes (suma de montos brutos)','0')+
   TA('zs','Sueldos: renta tributable de cada trabajador, una por línea (para el impuesto único)','','850.000\n1.900.000')+
   F('z48x','…o impuesto único ya calculado (reemplaza la lista)','')+
+  '<details class="xtra"><summary>Uso común: compras que sirven a ventas afectas y exentas (proporcionalidad)</summary>'+
+  R2(F('zucn','Facturas de uso común: cantidad','0'),F('zuc','Uso común: neto','0'))+
+  R2(F('zva','Ventas con derecho a crédito acumuladas en el año (neto)',''),F('zve','Ventas exentas acumuladas en el año (neto)',''))+
+  '<p class="mini" style="text-align:left">Vacío = solo las ventas de este mes. El crédito se usa en la proporción de ventas afectas y exportaciones sobre el total (art. 43 del Reglamento del IVA). Las compras que sirven solo a ventas exentas van en «sin derecho a crédito».</p></details>'+
+  '<details class="xtra"><summary>Cambio de sujeto (el comprador retiene el IVA)</summary>'+
+  '<p class="flab">Si te retienen (vendes chatarra, trigo, ganado, etc.)</p>'+R2(F('z515','Facturas de compra recibidas con retención total: cantidad','0'),F('z587','Retención total: neto','0'))+
+  R2(F('z516','Facturas de compra con retención parcial: cantidad','0'),F('z720','Retención parcial: neto','0'))+F('z517','IVA no retenido de esas facturas (lo pagas tú)','0')+
+  R2(F('z556','Anticipo de IVA retenido en el mes (carne 5%, harina 12%)','0'),F('z557','Remanente de anticipo del mes anterior','0'))+F('z558','Devolución de anticipo del mes anterior','0')+
+  '<p class="flab">Si retienes (agente retenedor)</p>'+R2(F('z39','IVA retenido con retención total','0'),F('z554','IVA retenido con retención parcial','0'))+
+  R2(F('z555','Anticipo de cambio de sujeto retenido','0'),F('z736','IVA retenido en notas de crédito (resta)','0'))+
+  '<p class="mini" style="text-align:left">Las facturas de compra que emites como retenedor van también en «Facturas del giro», para usar su crédito.</p></details>'+
+  '<details class="xtra"><summary>Impuestos adicionales: bebidas y licores (art. 42) y art. 37</summary>'+
+  '<p class="mini" style="text-align:left">Montos netos del mes. La app aplica la tasa legal de cada producto.</p>'+IA42.map(([k,nm,t])=>R2(F('za'+k,nm+' '+nf(t*100,1)+'%: ventas','0'),F('zc'+k,'compras','0'))).join('')+
+  F('z508','Remanente de impuesto adicional art. 42 del mes anterior','0')+
+  '<p class="flab">Art. 37</p>'+R2(F('z37v','Letras a), b) y c): ventas netas','0'),F('z37c','Letras a), b) y c): compras netas','0'))+
+  R2(F('z540','Remanente art. 37 del mes anterior','0'),F('z522','Letras e), h), i), l): ventas netas','0'))+F('z526','Letra j) (50%): ventas netas','0')+'</details>'+
   '<p class="flab">Plazo y pago</p>'+R2(S('zpl','Vence el',[[20,'Día 20 (factura electrónica, por internet)'],[12,'Día 12']],20),D('zpd','Fecha en que pagas'))+
   OUT+'<p class="flab" style="margin-top:14px">Así queda tu F29 (línea y código oficiales)</p><table class="tbl" id="zf"></table>'+
-  NOTE(`Códigos y líneas de las ${L(SIIDOC.f29,'instrucciones oficiales del F29 (SII, noviembre 2024)')}. IVA = neto × 19%; en boletas y vouchers el IVA va incluido (total × 19 ÷ 119). El remanente se reajusta por la variación de la UTM entre el mes en que se generó y el que declaras (art. 27 D.L. 825). Impuesto único con la UTM del mes; retención de honorarios con la tasa del año (Ley 21.133). PPM = ingresos netos del mes (código 563) × tasa (${L(SIIDOC.ppm,'Circular 53/2025')}). Fuera de plazo: reajuste por IPC (art. 53 Código Tributario), interés de 1,5% por mes o fracción y multa del art. 97 N° 2 (10%, +2% por mes desde el sexto, tope 30%), que el SII puede condonar en parte. Compara siempre con la propuesta del SII: no considera proporcionalidad, cambio de sujeto ni impuestos adicionales.`),
+  NOTE(`Códigos y líneas de las ${L(SIIDOC.f29,'instrucciones oficiales del F29 (SII, noviembre 2024)')}. IVA = neto × 19%; en boletas y vouchers el IVA va incluido (total × 19 ÷ 119). El remanente se reajusta por la variación de la UTM entre el mes en que se generó y el que declaras (art. 27 D.L. 825). Impuesto único con la UTM del mes; retención de honorarios con la tasa del año (Ley 21.133). PPM = ingresos netos del mes (código 563) × tasa (${L(SIIDOC.ppm,'Circular 53/2025')}). Fuera de plazo: reajuste por IPC (art. 53 Código Tributario), interés de 1,5% por mes o fracción y multa del art. 97 N° 2 (10%, +2% por mes desde el sexto, tope 30%), que el SII puede condonar en parte. Las secciones desplegables agregan uso común (crédito proporcional, art. 43 del Reglamento del IVA), cambio de sujeto (líneas 5, 6, 16 y 113 a 122) e impuestos adicionales de los arts. 37 y 42 (líneas 92 a 112, tasas de la Ley 20.780), todos según el reverso oficial del F29. Compara siempre con la propuesta del SII; no incluye tributación simplificada, créditos especiales (constructoras, peajes, patentes de agua) ni impuesto al diésel.`),
 async()=>{vis('g_zr',v('zr')==='x');
   const p=v('zp')||curYM(-1),[py,pm]=p.split('-').map(Number),r=Math.round,iv=id=>r(n(id)*.19);
   const [uP,uA]=await H(Promise.all([utmOf(p),utmOf(ym(py,pm-2))]));
-  const d502=iv('z502'),d111=r(n('z111')*19/119),d759=r(n('z759')*19/119),d513=iv('z513'),d510=iv('z510'),c538=d502+d111+d759+d513-d510;
+  const d502=iv('z502'),d111=r(n('z111')*19/119),d759=r(n('z759')*19/119),d513=iv('z513'),d510=iv('z510'),d517=r(n('z517')),c538=d502+d111+d759+d513-d510+d517;
   const k520=iv('z520'),k762=iv('z762'),k525=iv('z525'),k528=iv('z528'),k532=iv('z532'),k535=r(n('z535'));
   const rem=n('z504'),k504=rem&&uP&&uA?r(rem/uA*uP):rem;
-  const c537=k520+k762+k525-k528+k532+k535+k504,iva=c538-c537,c89=Math.max(iva,0),c77=Math.max(-iva,0);
   const tasa=v('zr')==='x'?n('zrt'):+v('zr');
-  const c563=r(n('z502')+n('z111')/1.19+n('z759')/1.19+n('z513')-n('z510')+n('z142')+n('z20')),c62=r(c563*tasa/100);
+  const c563=r(n('z502')+n('z111')/1.19+n('z759')/1.19+n('z513')-n('z510')+n('z142')+n('z20')+n('z587')+n('z720')),c62=r(c563*tasa/100);
+  // uso común: crédito proporcional a las ventas con derecho a crédito (afectas + exportaciones) sobre el total, acumuladas en el año
+  const vaf=v('zva').trim()===''?c563-n('z142'):n('zva'),vex=v('zve').trim()===''?n('z142'):n('zve'),prop=vaf+vex>0?vaf/(vaf+vex):1,kuc=r(n('zuc')*.19*prop);
+  const c537=k520+kuc+k762+k525-k528+k532+k535+k504,iva=c538-c537,c89=Math.max(iva,0),c77=Math.max(-iva,0);
   const hon=LEY.HON[py]||17,c151=r(n('zh')*hon/100);
   const lst=v('zs').split(/\n+/).map(numv).filter(x=>x>0);
   const c48=v('z48x').trim()!==''?n('z48x'):uP?lst.reduce((s,x)=>s+r(impUnico(x,uP)),0):0;
   const c595=c89+c48+c151+c62;
+  // reverso: arts. 37 y 42, anticipo y retenciones de cambio de sujeto
+  const c113=r(n('z37v')*.15),c28=r(n('z37c')*.15),c540=n('z540'),d37=c113-c28-c540,c550=Math.max(d37,0),c549=Math.max(-d37,0),c522=r(n('z522')*.15),c526=r(n('z526')*.5);
+  const a42=IA42.map(([k,,t])=>[r(n('za'+k)*t),r(n('zc'+k)*t)]),c602=a42.reduce((s,x)=>s+x[0],0),c603=a42.reduce((s,x)=>s+x[1],0)+n('z508'),c506=Math.max(c602-c603,0),c507=Math.max(c603-c602,0);
+  const c543=n('z556')+n('z557')-n('z558'),c598=Math.max(Math.min(c543,c89),0),c573=Math.max(c543-c598,0);
+  const c596=n('z39')+n('z554')+n('z555')-n('z736'),rev=c522+c526+c550+c506-c598+c596,c547=c595+rev,c91=Math.max(c547,0);
   let due=new Date(py,pm,+v('zpl'));const fer=new Set((await H(feriados(due.getFullYear()))).map(f=>f.d));
   while(due.getDay()%6===0||fer.has(isoD(due)))due=new Date(+due+864e5);
   const pay=new Date((v('zpd')||today())+'T00:00');let rec=null;
-  if(c595>0&&pay>due){let m=(pay.getFullYear()-due.getFullYear())*12+pay.getMonth()-due.getMonth();if(pay.getDate()>due.getDate())m++;m=Math.max(m,1);
+  if(c91>0&&pay>due){let m=(pay.getFullYear()-due.getFullYear())*12+pay.getMonth()-due.getMonth();if(pay.getDate()>due.getDate())m++;m=Math.max(m,1);
     const u=await H(ineUltimo()),A=ym(due.getFullYear(),due.getMonth()-2);let B=ym(pay.getFullYear(),pay.getMonth()-2);if(u&&B>u)B=u;
-    const x=B>A?await H(ipcVar(A,B)):0,c92=r(c595*Math.max(x||0,0)/100),int=r((c595+c92)*.015*m),mul=r(c595*Math.min(.1+(m>5?.02*(m-5):0),.3));
+    const x=B>A?await H(ipcVar(A,B)):0,c92=r(c91*Math.max(x||0,0)/100),int=r((c91+c92)*.015*m),mul=r(c91*Math.min(.1+(m>5?.02*(m-5):0),.3));
     rec={m,x,c92,int,mul,c93:int+mul}}
   show([[iva>=0?'IVA a pagar (cód. 89)':'Remanente para el mes siguiente (cód. 77)',clp(Math.abs(iva)),'tot'],['PPM (cód. 62)',clp(c62)],['Retenciones (48 + 151)',clp(c48+c151)],
-    ['Vence','el '+due.toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'})],['Total a pagar en plazo (cód. 91)',clp(c595),'tot'],
-    rec?['Atraso',rec.m+' mes(es) · IPC '+nf(rec.x||0,1)+'% · interés '+nf(rec.m*1.5,1)+'%']:null,rec?['Total con recargos (cód. 94)',clp(c595+rec.c92+rec.c93),'tot']:null,
+    n('zuc')?['Proporción de crédito por uso común',nf(prop*100,2)+'%']:null,rev?['Reverso: impuestos adicionales y cambio de sujeto',clp(rev)]:null,
+    ['Vence','el '+due.toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'})],['Total a pagar en plazo (cód. 91)',clp(c91),'tot'],
+    rec?['Atraso',rec.m+' mes(es) · IPC '+nf(rec.x||0,1)+'% · interés '+nf(rec.m*1.5,1)+'%']:null,rec?['Total con recargos (cód. 94)',clp(c91+rec.c92+rec.c93),'tot']:null,
     !uP?['UTM del período','sin dato: impuesto único y remanente sin reajustar']:null]);
   FORM('zf',[['1','585 20',cnt('Exportaciones (neto)','z585'),n('z20')],['2','586 142',cnt('Ventas exentas o no gravadas (neto)','z586'),n('z142')],
+    ['5','515 587',cnt('Facturas de compra recibidas con retención total (neto, sin débito)','z515'),n('z587')],['6','720','Facturas de compra recibidas con retención parcial (neto)',n('z720')],
     ['7','503 502',cnt('Facturas emitidas','z503'),d502],['10','110 111',cnt('Boletas','z110'),d111],['11','758 759',cnt('Comprobantes de pago electrónico','z758'),d759],
-    ['12','512 513',cnt('Notas de débito emitidas','z512'),d513],['13','509 510',cnt('Notas de crédito emitidas (resta)','z509'),-d510],['23','538','TOTAL DÉBITOS',c538,1],
+    ['12','512 513',cnt('Notas de débito emitidas','z512'),d513],['13','509 510',cnt('Notas de crédito emitidas (resta)','z509'),-d510],
+    ['16','516 517',cnt('Facturas de compra con retención parcial: IVA no retenido','z516'),d517],['23','538','TOTAL DÉBITOS',c538,1],
     ['25','564 521',cnt('Compras sin derecho a crédito (neto)','z564'),n('z521')],['28','519 520',cnt('Facturas recibidas del giro','z519'),k520],
+    ['28','519 520',cnt('Uso común: '+nf(prop*100,2)+'% del IVA de '+clp(n('zuc')),'zucn'),kuc],
     ['29','761 762',cnt('Facturas de supermercados y similares','z761'),k762],['31','524 525',cnt('Facturas de activo fijo','z524'),k525],
     ['32','527 528',cnt('Notas de crédito recibidas (resta)','z527'),-k528],['33','531 532',cnt('Notas de débito recibidas','z531'),k532],
     ['34','534 535',cnt('Importaciones del giro (DIN)','z534'),k535],['36','504','Remanente mes anterior'+(rem&&uP&&uA?' ('+clp(rem)+' ÷ UTM '+clp(uA)+' × UTM '+clp(uP)+')':''),k504],
     ['49','537','TOTAL CRÉDITOS',c537,1],iva>=0?['50','89','IVA determinado',c89,1]:['50','77','Remanente de crédito fiscal para el período siguiente',c77,1],
     ['60','48','Impuesto único de trabajadores'+(lst.length&&v('z48x').trim()===''?' ('+lst.length+' trabajadores)':''),c48],['61','151','Retención honorarios '+nf(hon,2)+'% sobre '+clp(n('zh')),c151],
-    ['69','563 115 62','PPM: '+clp(c563)+' × '+nf(tasa,3)+'%',c62],['80','595','SUBTOTAL IMPUESTO DETERMINADO',c595,1],['','91','TOTAL A PAGAR EN PLAZO LEGAL',c595,1],
-    rec&&['','92','Más IPC',rec.c92],rec&&['','93','Más intereses ('+clp(rec.int)+') y multa ('+clp(rec.mul)+')',rec.c93],rec&&['','94','TOTAL A PAGAR CON RECARGO',c595+rec.c92+rec.c93,1]])});
+    ['69','563 115 62','PPM: '+clp(c563)+' × '+nf(tasa,3)+'%',c62],['80','595','SUBTOTAL IMPUESTO DETERMINADO',c595,1],
+    ['','522','Art. 37 letras e), h), i), l): 15%',c522],['','526','Art. 37 letra j): 50%',c526],['','113','Art. 37 letras a), b) y c): débito 15%',c113],['','28','Art. 37: crédito 15%',-c28],['','540','Art. 37: remanente mes anterior',-c540],
+    (c113||c28||c540)&&(d37>=0?['91','550','Impuesto adicional art. 37 determinado',c550,1]:['91','549','Remanente art. 37 para el mes siguiente',c549,1]),
+    ...IA42.map(([k,nm,t,cd],i)=>[String(92+i),cd,nm+' '+nf(t*100,1)+'%: débito',a42[i][0]]),c602&&['100','602','Total débitos art. 42',c602,1],
+    ...IA42.map(([k,nm,t,,cc],i)=>[String(101+i),cc,nm+': crédito',-a42[i][1]]),['108','508','Remanente art. 42 mes anterior',-n('z508')],(c602||c603)&&['111','603','Total créditos art. 42',c603,1],
+    (c602||c603)&&(c602>=c603?['112','506','Impuesto adicional art. 42 determinado',c506,1]:['112','507','Remanente art. 42 para el mes siguiente',c507,1]),
+    ['113','556','Anticipo de IVA retenido en el mes',n('z556')],['114','557','Remanente de anticipo del mes anterior',n('z557')],['115','558','Devolución del mes anterior',-n('z558')],
+    c543&&['116','543','Total de anticipo',c543,1],c543&&['117','598','Anticipo a imputar (tope: IVA determinado)',-c598,1],c573&&['117','573','Remanente de anticipo para el mes siguiente',c573],
+    ['118','39','IVA retenido a terceros, retención total',n('z39')],['119','554','IVA retenido a terceros, retención parcial',n('z554')],['120','736','IVA retenido en notas de crédito (resta)',-n('z736')],
+    ['122','555','Retención de anticipo de cambio de sujeto',n('z555')],c596&&['122','596','Retención cambio de sujeto',c596,1],rev&&['134','547','TOTAL DETERMINADO (anverso + reverso)',c547,1],
+    ['','91','TOTAL A PAGAR EN PLAZO LEGAL',c91,1],
+    rec&&['','92','Más IPC',rec.c92],rec&&['','93','Más intereses ('+clp(rec.int)+') y multa ('+clp(rec.mul)+')',rec.c93],rec&&['','94','TOTAL A PAGAR CON RECARGO',c91+rec.c92+rec.c93,1]])});
 
 // 1ª categoría · F22 Pro Pyme
 tool_('f22pp','f1','F22 empresa Pro Pyme (recuadro 17)',()=>{const y=new Date().getFullYear();return S('qY','Año comercial',[y-1,y-2].map(a=>[a,a+' · Operación Renta '+(a+1)]),y-1)+
@@ -1715,35 +1755,86 @@ tool_('ppm2','f2','Honorarios sin retención: PPM del F29 (cód. 152)',()=>M('p2
   show([['Tasa '+y,nf(t,2)+'%'],['PPM a pagar (F29 cód. 152)',clp(c),'tot'],['Te queda',clp(b-c)],['Vence','día 12 (o 20 si declaras por internet con documentos electrónicos) del mes siguiente']])});
 
 // 2ª categoría · F22 personas
-tool_('f22pn','f2','F22 personas: sueldos y honorarios',()=>{const y=new Date().getFullYear();return S('pY','Rentas del año',[y-1,y-2].map(a=>[a,a+' · Operación Renta '+(a+1)]),y-1)+
+// Cotizaciones de independientes: % sobre los honorarios brutos según año de las rentas (Subsecretaría de Previsión Social, folleto AFP N° 29).
+// com = [SIS + accidentes + SANNA + salud, pensiones]; par = [SIS + accidentes + SANNA, salud, pensiones]; pi = % de la renta imponible en cobertura parcial
+const COTI={2024:{com:[7.57,6.18],par:[1.97,3.92,6.24],pi:70},2025:{com:[7.57,6.94],par:[1.97,4.48,7.13],pi:80},2026:{com:[7.57,7.68],par:[1.97,5.04,8.02],pi:90},2027:{com:[7.57,8.43],par:[1.97,5.60,8.91],pi:100}};
+tool_('f22pn','f2','F22 personas: sueldos, honorarios y retiros',()=>{const y=new Date().getFullYear();return S('pY','Rentas del año',[y-1,y-2].map(a=>[a,a+' · Operación Renta '+(a+1)]),y-1)+
   '<p class="flab">Sueldos y pensiones (certificado N° 6, montos actualizados)</p>'+R2(F('p1098','Renta tributable actualizada','0'),F('p162','Impuesto único retenido actualizado','0'))+
   '<p class="flab">Boletas de honorarios (montos actualizados)</p>'+R2(F('p461','Con retención: bruto anual','12.000.000'),F('p492','Retenciones · vacío = tasa del año',''))+
   R2(F('p545','Sin retención: bruto anual','0'),F('p1905','PPM pagados (F29 cód. 152), actualizados','0'))+
   S('pG','Gastos de honorarios',[['pres','Presuntos: 30%, tope 15 UTA'],['efe','Efectivos (con respaldo)']],'pres')+G('g_pG',F('p465','Gastos efectivos','0'))+
+  S('pCo','Cotizaciones de independiente (se pagan con la retención)',[['com','Cobertura completa'],['par','Cobertura parcial (opción en el F22)'],['exe','No cotizo (exento por edad u otro régimen)'],['man','Escribir el monto de mi propuesta']],'com')+
+  G('g_pCo',F('p900','Cotizaciones (código 900 de tu propuesta)','0'))+F('pAt','Cotización adicional de accidentes según tu actividad (0% a 3,4%)','0')+
+  '<details class="xtra"><summary>Retiros o dividendos de empresas (dueños y socios)</summary>'+
+  S('pRr','La empresa está en',[['d3','Pro Pyme general (14 D N° 3)'],['a','Régimen general semi integrado (14 A)'],['d8','Pro Pyme transparente (14 D N° 8)']],'d3')+
+  R2(F('pRet','Retiros del año (o tu parte de la base, si es transparente)','0'),S('pRk','Son',[['ret','Retiros'],['div','Dividendos']],'ret'))+
+  S('pRt','Impuesto que pagó la empresa sobre esas utilidades (crédito)',[['12.5','12,5%'],['25','25%'],['27','27%'],['10','10%'],['0','Sin crédito']],'12.5')+
+  F('pRp','PPM y créditos que te traspasa la empresa transparente (cód. 1645)','0')+'</details>'+
   '<p class="flab">Otras rentas, rebajas y créditos</p>'+R2(F('p1032','Otras rentas afectas','0'),F('p765','APV régimen B','0'))+
   R2(F('pInt','Intereses del crédito hipotecario pagados','0'),F('pHij','Hijos estudiando','0'))+
   S('pEd','Renta del grupo familiar hasta 792 UF al año',[['si','Sí (tengo derecho al crédito por educación)'],['no','No']],'si')+
-  F('p900','Cotizaciones de independiente (cargo, de tu propuesta)','0')+
   OUT+'<p class="flab" style="margin-top:14px">Así queda tu F22</p><table class="tbl" id="pf"></table>'+
-  NOTE(`Códigos y líneas del ${L(SIIDOC.f22,'F22 AT 2026')}. Tabla anual del global complementario en UTA de diciembre (se actualiza sola). Gastos presuntos 30% con tope 15 UTA (cód. 494). APV régimen B: tope 600 UF. Intereses hipotecarios (art. 55 bis): hasta 8 UTA si la base no supera 90 UTA; entre 90 y 150 UTA se reduce en proporción; sobre 150 UTA no hay rebaja. Crédito por educación (art. 55 ter): 4,4 UF por hijo, solo rebaja impuesto (no genera devolución por sí solo). El impuesto único retenido (cód. 162) sí se devuelve. Las retenciones de honorarios pagan primero las cotizaciones (cód. 900). Para actualizar montos mes a mes usa «DJ 1887 / 1879 y certificados». Compara con la ${L(SIIDOC.sup,'propuesta y el suplemento del SII')}.`)},
-async()=>{const Y=+v('pY');vis('g_pG',v('pG')==='efe');
+  NOTE(`Códigos y líneas del ${L(SIIDOC.f22,'F22 AT 2026')}. Tabla anual del global complementario en UTA de diciembre (se actualiza sola). Gastos presuntos 30% con tope 15 UTA (cód. 494). Cotizaciones: % de los honorarios brutos del año según la ${L('https://www.spensiones.cl','Superintendencia de Pensiones')} (2025: completa 14,51%, parcial 13,58% sobre el 80%), con tope de 12 × 90 UF de renta imponible; no cotiza quien tiene honorarios anuales menores a 5 ingresos mínimos. Retiros: el crédito es retiro × tasa ÷ (100 − tasa), se suma como incremento (cód. 159) y se descuenta con derecho a devolución (cód. 610); en el régimen 14 A se restituye el 35% (cód. 1035). APV B tope 600 UF; intereses hipotecarios hasta 8 UTA (rebaja proporcional entre 90 y 150 UTA); crédito por educación 4,4 UF por hijo. Compara con la ${L(SIIDOC.sup,'propuesta y el suplemento del SII')}.`)},
+async()=>{const Y=+v('pY');vis('g_pG',v('pG')==='efe');vis('g_pCo',v('pCo')==='man');
   const [ud,uf]=await H(Promise.all([utmOf(Y+'-12'),ufOn(Y,11,31)]));if(!ud)return show([['Sin UTM de diciembre '+Y,'—']]);
   const uta=ud*12,r=Math.round,h461=n('p461'),h545=n('p545'),c547=h461+h545,c492=v('p492').trim()===''?r(h461*(LEY.HON[Y]||13.75)/100):n('p492');
-  const pres=v('pG')==='pres',gas=pres?Math.min(r(c547*.3),r(15*uta)):Math.min(n('p465'),c547),c467=c547-gas,c1098=n('p1098'),c158=c467+n('p1032')+c1098;
+  const pres=v('pG')==='pres',gas=pres?Math.min(r(c547*.3),r(15*uta)):Math.min(n('p465'),c547),c467=c547-gas,c1098=n('p1098');
+  // retiros
+  const rg=v('pRr'),R=n('pRet'),t=+v('pRt'),div=v('pRk')==='div',d8=rg==='d8',cr=!d8&&t?r(R*t/(100-t)):0,rest=rg==='a'?r(cr*.35):0,ppmT=d8?n('pRp'):0;
+  const colCr=rg==='a'?(div?'1026':'1024'):(div?'1027':'1025');
+  const c158=c467+n('p1032')+c1098+R+cr;
   const apv=uf?Math.min(n('p765'),r(600*uf)):n('p765'),pu=(c158-apv)/uta;
   let c751=Math.min(n('pInt'),r(8*uta));if(pu>150)c751=0;else if(pu>90)c751=r(c751*(150-pu)/60);
-  const c170=Math.max(0,c158-apv-c751),c157=r(impUnico(c170,uta)),c895=v('pEd')==='si'&&uf?r(n('pHij')*4.4*uf):0,ed=Math.min(c895,c157);
-  const c162=n('p162'),c304=c157-ed-c162,c36=n('p1905'),c900=n('p900'),c305=c304-c492-c36+c900;
+  const c170=Math.max(0,c158-apv-c751),c157=r(impUnico(c170,uta)),c895=v('pEd')==='si'&&uf?r(n('pHij')*4.4*uf):0,ed=Math.min(c895,c157+rest);
+  const c162=n('p162'),c304=c157+rest-ed-c162-cr,c36=n('p1905');
+  // cotizaciones de independiente
+  const co=COTI[Y]||COTI[2025],modo=v('pCo'),ri=.8*c547,top=uf?12*LEY.TOPE_AFP*uf:Infinity,k=ri>0?Math.min(ri,top)/ri:0,exento=c547<5*LEY.IMM;
+  let cot=[],c900=0;
+  if(modo==='man')c900=n('p900');
+  else if(modo!=='exe'&&!exento&&c547>0){const p=modo==='com'?[['SIS, accidentes, SANNA y salud',co.com[0]],['Pensiones',co.com[1]]]:[['SIS, accidentes y SANNA',co.par[0]],['Salud',co.par[1]],['Pensiones ('+co.pi+'% de la renta imponible)',co.par[2]]];
+    cot=p.map(([nm,x])=>[nm,r(c547*x/100*k)]);if(n('pAt'))cot.push(['Accidentes, cotización adicional '+nf(n('pAt'),2)+'%',r(Math.min(ri,top)*n('pAt')/100)]);c900=cot.reduce((s,x)=>s+x[1],0)}
+  const c305=c304-c492-c36-ppmT+c900;
   show([['UTA diciembre '+Y,clp(uta)],['Base imponible (cód. 170)',clp(c170)+' · '+nf(c170/uta,2)+' UTA','tot'],['Impuesto según tabla (cód. 157)',clp(c157)],
-    ['Tasa marginal',(LEY.IUSC.filter(x=>c170/uta>x[0]).pop()||[0,0])[1]*100+'%'],[c305<0?'Devolución (cód. 87)':'A pagar (cód. 91)',clp(Math.abs(c305)),'tot']]);
+    ['Tasa marginal',(LEY.IUSC.filter(x=>c170/uta>x[0]).pop()||[0,0])[1]*100+'%'],
+    modo!=='man'&&modo!=='exe'&&c547>0?['Cotizaciones (cód. 900)',exento?'exento: honorarios bajo 5 ingresos mínimos':clp(c900)+' · '+(modo==='com'?'completa':'parcial')+(k<1?' (con tope 90 UF)':'')]:null,
+    ...cot.map(([a,b])=>['  · '+a,clp(b)]),[c305<0?'Devolución (cód. 87)':'A pagar (cód. 91)',clp(Math.abs(c305)),'tot']]);
   FORM('pf',[['R1','461','Honorarios anuales con retención',h461],['R1','492','Impuesto retenido de esos honorarios',c492],['R1','545','Honorarios anuales sin retención',h545],
     ['R1','547','Total ingresos brutos',c547,1],['R1',pres?'494':'465',pres?'Gastos presuntos 30% (tope '+clp(15*uta)+')':'Gastos efectivos',-gas],['R1','467','Total honorarios',c467,1],
+    !d8&&R&&[div?'2':'1',(div?'105':'104')+' '+colCr,(div?'Dividendos':'Retiros')+' afectos al IGC · crédito '+clp(cr)+(rg==='a'?' (con restitución)':' (sin restitución)'),R],
+    d8&&R&&['6','1632','Rentas de empresa Pro Pyme transparente (art. 14 D N° 8)',R],
     ['7','110','Honorarios del recuadro 1',c467],['10','1032','Otras rentas de fuente chilena',n('p1032')],['13','1098 161','Sueldos, pensiones y rentas similares',c1098],
-    ['19','158','SUB TOTAL',c158,1],['21','751','Rebaja por intereses hipotecarios (art. 55 bis)',-c751],['23','765','Ahorro previsional voluntario (tope '+(uf?clp(600*uf):'600 UF')+')',-apv],
-    ['24','170','BASE IMPONIBLE ANUAL',c170,1],['25','157','Global complementario según tabla',c157,1],['41','895','Crédito por gastos en educación',-ed],
-    ['46','162','Crédito por impuesto único retenido',-c162],['52','304','IGC determinado (negativo = devolución del impuesto único)',c304,1],
-    ['85','36 1905','PPM de segunda categoría',-c36],['91','198','Retenciones de honorarios (cód. 110)',-c492],['106','900','Cargo por cotizaciones previsionales',c900],
-    ['109','305','RESULTADO LIQUIDACIÓN ANUAL',c305,1],...(c305<0?[['110','85','Saldo a favor',-c305,1],['112','87','Devolución solicitada',-c305,1]]:[['113','90','Impuesto adeudado',c305,1],['115','91','TOTAL A PAGAR',c305,1]])])});
+    ['14','159','Incremento por impuesto de primera categoría',cr],['19','158','SUB TOTAL',c158,1],['21','751','Rebaja por intereses hipotecarios (art. 55 bis)',-c751],
+    ['23','765','Ahorro previsional voluntario (tope '+(uf?clp(600*uf):'600 UF')+')',-apv],['24','170','BASE IMPONIBLE ANUAL',c170,1],['25','157','Global complementario según tabla',c157,1],
+    ['29','1035','Débito por restitución del crédito (35%)',rest],['41','895','Crédito por gastos en educación',-ed],['46','162','Crédito por impuesto único retenido',-c162],
+    ['48','610','Crédito por impuesto de primera categoría con derecho a devolución',-cr],['52','304','IGC determinado (negativo = devolución)',c304,1],
+    ['85','36 1905','PPM de segunda categoría',-c36],['91','198','Retenciones de honorarios (cód. 110)',-c492],['99','1645','PPM traspasados por la empresa transparente',-ppmT],
+    ['106','900','Cargo por cotizaciones previsionales',c900],['109','305','RESULTADO LIQUIDACIÓN ANUAL',c305,1],
+    ...(c305<0?[['110','85','Saldo a favor',-c305,1],['112','87','Devolución solicitada',-c305,1]]:[['113','90','Impuesto adeudado',c305,1],['115','91','TOTAL A PAGAR',c305,1]])])});
+
+// 1ª categoría · F22 régimen general (semi integrado)
+const FAC_CM={2025:3.4};   // reajuste del capital propio inicial, Circular SII 5/2026
+async function cmPct(Y){if(FAC_CM[Y])return FAC_CM[Y];const x=await ipcVar(ym(Y-1,10),ym(Y,10));return x==null?null:Math.round(x*10)/10}
+tool_('f22rg','f1','F22 empresa régimen general (recuadro 12)',()=>{const y=new Date().getFullYear();return S('gY','Año comercial',[y-1,y-2].map(a=>[a,a+' · Operación Renta '+(a+1)]),y-1)+
+  '<p class="flab">Resultado financiero del año (sin IVA)</p>'+R2(F('g1657','Ingresos del giro','150.000.000'),F('g1659','Intereses ganados','0'))+R2(F('g1660','Otros ingresos','0'),F('g1661','Costo directo','80.000.000'))+
+  R2(F('g1662','Remuneraciones','30.000.000'),F('g1140','Arriendos','0'))+R2(F('g1663','Depreciación financiera','0'),F('g1664','Intereses pagados','0'))+F('g1671','Otros gastos','0')+
+  '<p class="flab">Ajustes tributarios</p>'+R2(F('gCP','Capital propio tributario inicial (para la corrección monetaria)','0'),F('gAC','Activos no monetarios iniciales (activo fijo, existencias)','0'))+
+  R2(F('g1679','Depreciación tributaria','0'),F('g1689','Pérdidas de años anteriores','0'))+F('g1154','Incentivo al ahorro (art. 14 E, ventas < 100.000 UF): utilidad que queda en la empresa','0')+
+  R2(F('g1111','Créditos contra el impuesto (activo fijo, contribuciones…)','0'),F('g1904','PPM pagados en el año, actualizados','0'))+
+  OUT+'<p class="flab" style="margin-top:14px">Así queda tu F22</p><table class="tbl" id="gf"></table>'+
+  NOTE(`Códigos del ${L(SIIDOC.f22,'F22 AT 2026')}: recuadro 12 (base imponible art. 14 A) y línea 55. Impuesto de primera categoría 27%. Corrección monetaria aproximada con los saldos iniciales: capital propio × variación del IPC de noviembre a noviembre (deudor, cód. 1673) y activos no monetarios × la misma variación (acreedor, cód. 1674); 2025: 3,4% según la ${L(SIIDOC.fac,'Circular 5/2026')}. Las compras del año se reajustan mes a mes con los factores de «Factores y parámetros». Los socios declaran sus retiros en «F22 personas» con crédito de 27% y restitución del 35%.`)},
+async()=>{const Y=+v('gY'),r=Math.round,[cm,uf]=await H(Promise.all([cmPct(Y),ufOn(Y,11,31)]));
+  const ing=['1657','1659','1660'],gas=['1661','1662','1140','1663','1664','1671'],c1672=ing.reduce((s,k)=>s+n('g'+k),0)-gas.reduce((s,k)=>s+n('g'+k),0);
+  const c1673=r(n('gCP')*(cm||0)/100),c1674=r(n('gAC')*(cm||0)/100),c1675=n('g1663');
+  const c1728=c1672-c1673+c1674+c1675-n('g1679')-n('g1689'),c1154=Math.min(n('g1154'),Math.max(c1728,0)*.5,uf?5000*uf:Infinity),c1690=c1728-c1154;
+  const c1113=c1690>0?Math.max(r(c1690*.27)-n('g1111'),0):0,ppm=n('g1904'),c305=c1113-ppm;
+  show([['Corrección monetaria '+Y,cm!=null?nf(cm,1)+'%':'sin IPC'],['Renta líquida imponible (cód. 1690)',clp(c1690),'tot'],['Impuesto de primera categoría 27%',clp(c1113),'tot'],['Menos PPM',clp(ppm)],[c305>=0?'A pagar':'Devolución',clp(Math.abs(c305)),'tot']]);
+  const nm={'1657':'Ingresos del giro','1659':'Intereses percibidos','1660':'Otros ingresos','1661':'Costo directo','1662':'Remuneraciones','1140':'Arriendos','1663':'Depreciación financiera','1664':'Intereses pagados','1671':'Otros gastos'};
+  FORM('gf',[...ing.map(k=>['R12',k,nm[k],n('g'+k)]),...gas.map(k=>['R12',k,nm[k],-n('g'+k)]),['R12','1672','Resultado financiero',c1672,1],
+    ['R12','1673','Corrección monetaria saldo deudor (capital propio × '+nf(cm||0,1)+'%)',-c1673],['R12','1674','Corrección monetaria saldo acreedor (activos × '+nf(cm||0,1)+'%)',c1674],
+    ['R12','1675','Agrega depreciación financiera',c1675],['R12','1679','Depreciación tributaria',-n('g1679')],['R12','1689','Pérdidas de años anteriores',-n('g1689')],
+    ['R12','1728','Renta líquida antes del incentivo al ahorro',c1728,1],['R12','1154','Incentivo al ahorro, art. 14 E',-c1154],['R12','1690','RENTA LÍQUIDA IMPONIBLE O PÉRDIDA',c1690,1],
+    ['55','1109 1111 1113','IDPC 27%: base '+clp(Math.max(c1690,0))+(n('g1111')?' − créditos '+clp(n('g1111')):''),c1113,1],['85','36 1904','PPM del año',-ppm],['109','305','RESULTADO LIQUIDACIÓN ANUAL',c305,1],
+    ...(c305<0?[['110','85','Saldo a favor',-c305,1],['112','87','Devolución solicitada',-c305,1]]:[['113','90','Impuesto adeudado',c305,1],['115','91','TOTAL A PAGAR',c305,1]])])});
 
 // 2ª categoría · DJ 1887 / 1879 con actualización mensual
 let DJ=[];
@@ -1764,7 +1855,7 @@ async()=>{const Y=+v('djY'),hon=v('djT')==='h',[fa,um]=await H(Promise.all([fact
 function djCSV(){bajar('declaracion-jurada.csv',[['Mes','Monto','Retención','Factor','Monto actualizado','Retención actualizada'],...DJ.map(d=>[d[0],d[1],d[2],String(d[3]).replace('.',','),d[4],d[5]])])}
 
 // Trámites · factores y parámetros
-tool_('factores','fo','Factores y parámetros vigentes (se actualizan solos)',()=>'<button class="chip" onclick="facReset()">🔄 Actualizar ahora</button>'+OUT+
+tool_('factores','fo','Factores y parámetros vigentes (se actualizan solos)',()=>'<button class="chip" onclick="facReset(this)">🔄 Actualizar ahora</button>'+OUT+
   '<p class="flab" style="margin-top:14px">Factores de actualización · rentas del año pasado (F22 de este año)</p><table class="tbl" id="fa1"></table>'+
   '<p class="flab" style="margin-top:14px">Factores provisionales · rentas de este año</p><table class="tbl" id="fa2"></table>'+
   '<p class="flab" style="margin-top:14px">Impuesto único mensual · este mes</p><table class="tbl" id="fa3"></table>'+
@@ -1773,7 +1864,7 @@ tool_('factores','fo','Factores y parámetros vigentes (se actualizan solos)',()
   NOTE(`🔄 = se obtiene en línea cada vez que abres la app: UTM y UF del Banco Central (mindicador.cl), IPC del INE (calculadora oficial). Las tablas en pesos salen de multiplicar las tablas oficiales en UTM/UTA por esos valores. Para verificar: ${L(SIIDOC.fac,'Circular 5/2026 (factores)')}, ${L(SRC.sii_utm,'UTM del SII')}, ${L(SRC.sii_iusc,'impuesto único del SII')}, ${L(SIIDOC.sup,'suplemento de renta')}.`),
 async()=>{const y=new Date().getFullYear(),Y=y-1,u=x=>x?clp(x):'sin dato';
   const [uN,uD,ufD,iu,fa,fb]=await H(Promise.all([utmOf(curYM()),utmOf(Y+'-12'),ufOn(Y,11,31),ineUltimo(),factAct(Y),factAct(y)]));const i12=await ipc12();
-  show([['🔄 UTM '+ymTxt(curYM()),u(uN),'tot'],['🔄 UTA (12 UTM)',u(uN&&uN*12)],['🔄 UF hoy',R.UF?'$'+nf(R.UF,2):'sin dato'],['🔄 Último IPC del INE',iu?ymTxt(iu):'sin dato'],
+  show([['Consultado',new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'medium'})],['🔄 UTM '+ymTxt(curYM()),u(uN),'tot'],['🔄 UTA (12 UTM)',u(uN&&uN*12)],['🔄 UF hoy',R.UF?'$'+nf(R.UF,2):'sin dato'],['🔄 Último IPC del INE',iu?ymTxt(iu):'sin dato'],
     ['🔄 IPC últimos 12 meses',i12!=null?nf(i12,1)+'%':'sin dato'],['🔄 UTA diciembre '+Y+' (F22 '+y+')',u(uD&&uD*12),'tot'],['🔄 UF al 31-dic-'+Y,ufD?'$'+nf(ufD,2):'sin dato'],
     ['Exento impuesto único (13,5 UTM)',u(uN&&13.5*uN)],['Exento global complementario (13,5 UTA)',u(uD&&13.5*12*uD)],['Tope gastos presuntos honorarios (15 UTA)',u(uD&&15*12*uD)],
     ['Tope rebaja intereses hipotecarios (8 UTA)',u(uD&&8*12*uD)],['Tope APV régimen B (600 UF)',u(ufD&&600*ufD)],['Crédito educación por hijo (4,4 UF)',u(ufD&&4.4*ufD)],
@@ -1782,12 +1873,16 @@ async()=>{const y=new Date().getFullYear(),Y=y-1,u=x=>x?clp(x):'sin dato';
   ft('fa1',fa);ft('fa2',fb);const T=LEY.IUSC;
   el('fa3').innerHTML=uN?tabla(['Desde','Hasta','Factor','Rebaja'],T.map((x,i)=>[clp(x[0]*uN),T[i+1]?clp(T[i+1][0]*uN):'y más',x[1]?nf(x[1],3):'Exento',clp(x[2]*uN)])):'';
   el('fa4').innerHTML=uD?tabla(['Desde','Hasta','Factor','Rebaja'],T.map((x,i)=>[clp(x[0]*uD*12),T[i+1]?clp(T[i+1][0]*uD*12):'y más',x[1]?nf(x[1],3):'Exento',clp(x[2]*uD*12)])):'';
-  el('fa5').innerHTML=tabla(['Parámetro','Valor','Norma'],[['IVA','19%','D.L. 825, art. 14'],['Retención boletas de honorarios',Object.entries(LEY.HON).map(([a,t])=>a+': '+nf(t,2)+'%').join(' · '),'Ley 21.133'],
+  el('fa5').innerHTML=tabla(['Parámetro','Valor','Norma'],[['IVA','19%','D.L. 825, art. 14'],['Impuestos adicionales art. 42','licores 31,5% · vinos y cervezas 20,5% · bebidas 10% · alto azúcar 18%','D.L. 825 art. 42 (Ley 20.780)'],
+    ['Cotizaciones de independientes, rentas '+Y,(c=>c?'completa '+nf(c.com[0]+c.com[1],2)+'% · parcial '+nf(c.par[0]+c.par[1]+c.par[2],2)+'% de los honorarios brutos':'—')(COTI[Y]),'Ley 21.133'],
+    ['Corrección monetaria del capital propio '+Y,FAC_CM[Y]?nf(FAC_CM[Y],1)+'% (Circular SII 5/2026)':'IPC de noviembre a noviembre','LIR art. 41'],['Retención boletas de honorarios',Object.entries(LEY.HON).map(([a,t])=>a+': '+nf(t,2)+'%').join(' · '),'Ley 21.133'],
     ['Impuesto primera categoría, régimen general','27%','LIR art. 20'],['Impuesto primera categoría, Pro Pyme','12,5% (2025–2027), 15% (2028), luego 25%','Ley 21.755'],
     ['PPM Pro Pyme general','0,125% (≤ 50.000 UF) o 0,25%, ago-2025 a dic-2027','Ley 21.755'],['PPM Pro Pyme transparente','0,2% (≤ 50.000 UF) o 0,5%','LIR art. 14 D N° 8'],
     ['Interés por mora','1,5% por mes o fracción','Código Tributario art. 53'],['Multa por declarar tarde','10% + 2% por mes desde el 6°, tope 30%','Código Tributario art. 97 N° 2'],
     ['Plazo F29','día 12, o 20 con documentos electrónicos por internet','D.L. 825 art. 64'],['Plazo F22','30 de abril','LIR art. 69']])});
-function facReset(){for(const o of [FAC,UTMY,UFY,INEC])for(const k in o)delete o[k];ineLast=null;ipcLast=null;load(1);runTool()}
+async function facReset(b){b.disabled=true;b.textContent='⏳ Actualizando…';for(const o of [FAC,UTMY,UFY,INEC])for(const k in o)delete o[k];ineLast=null;ipcLast=null;
+  try{await load(1);await runTool()}catch(e){}
+  const x=[...el('tool').querySelectorAll('button')].find(e=>e.textContent.includes('Actualiz'))||b;x.disabled=false;x.textContent='✓ Actualizado a las '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 
 // Calendario
 tool_('calendario','cal','Calendario tributario y previsional',()=>S('cz','Mostrar',[[60,'Próximos 60 días'],[120,'Próximos 4 meses'],[365,'Próximos 12 meses']],120)+OUT+
@@ -1827,7 +1922,7 @@ async()=>{const a=new Date(v('ha1')+'T12:00'),b=new Date(v('ha2')+'T12:00');cons
 const CATH={
  ind:'Valores oficiales que cambian con el tiempo (UTM, UF, IPC) y cómo actualizar montos con ellos.',
  multas:'Cuánto es en pesos una multa o un trámite que te cobran en UTM o UTA.',
- f1:'Para negocios y empresas (primera categoría): F29 mensual completo y F22 Pro Pyme, con las líneas y códigos oficiales del SII.',
+ f1:'Para negocios y empresas (primera categoría): F29 mensual completo (con cambio de sujeto, impuestos adicionales y uso común), F22 Pro Pyme y F22 régimen general, con las líneas y códigos oficiales del SII.',
  f2:'Para trabajadores y profesionales (segunda categoría): impuesto único, honorarios, F22 de personas y declaraciones juradas con factores del IPC.',
  fo:'Guía paso a paso de los trámites del SII y todos los factores oficiales (UTM, UF, IPC, tablas y topes), que se actualizan solos.',
  imp:'Impuestos: IVA, boletas de honorarios, declaración mensual (F29) y anual (Renta), y guía paso a paso de los formularios del SII.',
@@ -1879,7 +1974,8 @@ const HELP={
  f22pp:'Renta anual de tu empresa Pro Pyme: ingresos menos gastos pagados = base; te da el impuesto (12,5%), los PPM y si pagas o te devuelven.',
  iusc:'La tabla del impuesto a los sueldos de este mes en pesos, y cuánto impuesto paga un sueldo.',
  ppm2:'Si diste boletas sin retención, cuánto pagar de PPM en el F29 (código 152).',
- f22pn:'Tu Operación Renta de persona: sueldos, boletas, dividendo, APV e hijos estudiando; te muestra cada código del F22 y si te devuelven o pagas.',
+ f22rg:'Renta anual de una empresa del régimen general: resultado del año, corrección monetaria con el IPC, impuesto de 27%, PPM y resultado.',
+ f22pn:'Tu Operación Renta de persona: sueldos, boletas (con cotizaciones calculadas), retiros de tu empresa, dividendo, APV e hijos estudiando; te muestra cada código del F22 y si te devuelven o pagas.',
  dj18:'Escribe lo pagado cada mes (sueldos u honorarios) y la app aplica los factores oficiales del IPC: te da los totales para la declaración jurada y el certificado.',
  factores:'Todos los valores que cambian (UTM, UF, IPC, factores de actualización, tablas, topes) al día y en pesos, con su fuente.',
  sii:'Elige el trámite (F29, Renta, boleta de honorarios, factura, inicio de actividades…) y te dice quién lo hace, dónde hacer clic y qué significa cada casilla.',
@@ -1920,7 +2016,7 @@ function guiaHTML(cat){return '<div class="guia">'+CATS.map(([c,nm])=>`<details$
 /* --- buscador de herramientas --- */
 const sinT=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 const KW={iva:'impuesto ventas neto bruto 19',propina:'restaurant cuenta dividir pagar cada uno',gastos:'dividir viaje asado deuda',cobre:'chatarra cable libra',sii:'formulario declarar f29 f22 boleta factura inicio actividades termino giro declaracion jurada tramite',
- finiquito:'despido indemnizacion',f29c:'iva mensual declaracion codigos 538 537 89 77 remanente ppm 151 48 multa intereses',f22pn:'renta anual devolucion operacion renta igc global complementario 157 170 87',f22pp:'pro pyme empresa idpc renta 1440 primera categoria',dj18:'declaracion jurada 1887 1879 certificado factores actualizacion',factores:'utm uta uf ipc factores actualizacion tabla topes parametros',iusc:'impuesto unico segunda categoria sueldo tabla',ppm2:'honorarios sin retencion ppm 152',prestamo:'credito cuota tabla amortizacion',compuesto:'interes',liquido:'sueldo',bruto:'sueldo',metal:'oro plata platino cobre gramo',feriados:'festivo',habiles:'dias plazo'};
+ finiquito:'despido indemnizacion',f29c:'iva mensual declaracion codigos 538 537 89 77 remanente ppm 151 48 multa intereses cambio de sujeto retencion licores bebidas impuesto adicional uso comun proporcionalidad',f22pn:'renta anual devolucion operacion renta igc global complementario 157 170 87 retiros dividendos cotizaciones independientes 900',f22pp:'pro pyme empresa idpc renta 1440 primera categoria',f22rg:'regimen general semi integrado 14a empresa idpc 27 correccion monetaria 1690',dj18:'declaracion jurada 1887 1879 certificado factores actualizacion',factores:'utm uta uf ipc factores actualizacion tabla topes parametros',iusc:'impuesto unico segunda categoria sueldo tabla',ppm2:'honorarios sin retencion ppm 152',prestamo:'credito cuota tabla amortizacion',compuesto:'interes',liquido:'sueldo',bruto:'sueldo',metal:'oro plata platino cobre gramo',feriados:'festivo',habiles:'dias plazo'};
 function buscar(go){const q=sinT(el('tq').value.trim()),box=el('tres');if(!q){box.innerHTML='';return}
   const w=q.split(/\s+/),cn=Object.fromEntries(CATS);
   const r=Object.keys(TD).map(k=>{const nm=sinT(TD[k].nom),tx=nm+' '+sinT(cn[TD[k].cat]+' '+(HELP[k]||'')+' '+(KW[k]||'')+' '+k);
@@ -2001,7 +2097,7 @@ async function cardSeries(){
 hchips();applyCfg();tools();load();hist().then(cardSeries);compare();
 // refresca al volver a la app
 // Versión publicada: si GitHub Pages ya tiene otra, se recarga saltándose la caché (max-age=600).
-const VER='2026.10.04-6';
+const VER='2026.10.04-7';
 async function chkVer(){if(!location.hostname.endsWith('github.io'))return;
   try{const t=await fetch(location.pathname+'?nv='+Date.now(),{cache:'no-store'}).then(r=>r.text()),m=t.match(/const VER='([^']+)'/);
     if(m&&m[1]!==VER&&sessionStorage.getItem('ver')!==m[1]){sessionStorage.setItem('ver',m[1]);location.replace(location.pathname+'?v='+m[1])}}catch(e){}}
