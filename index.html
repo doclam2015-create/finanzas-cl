@@ -1619,7 +1619,13 @@ async function cardSeries(){
 }
 hchips();applyCfg();tools();load();hist().then(cardSeries);compare();
 // refresca al volver a la app
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(1)});
+// Versión publicada: si GitHub Pages ya tiene otra, se recarga saltándose la caché (max-age=600).
+const VER='2026.10.04-3';
+async function chkVer(){if(!location.hostname.endsWith('github.io'))return;
+  try{const t=await fetch(location.pathname+'?nv='+Date.now(),{cache:'no-store'}).then(r=>r.text()),m=t.match(/const VER='([^']+)'/);
+    if(m&&m[1]!==VER&&sessionStorage.getItem('ver')!==m[1]){sessionStorage.setItem('ver',m[1]);location.replace(location.pathname+'?v='+m[1])}}catch(e){}}
+chkVer();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){load(1);chkVer()}});
 </script>
 </body>
 </html>
