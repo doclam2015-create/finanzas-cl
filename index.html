@@ -120,6 +120,10 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
 /* flecha en todos los desplegables */
 select.fld,.add select,select.sel,.cfgrow select,.base select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;background-size:12px 8px;padding-right:32px}
 .base select{padding-right:24px;background-position:right 4px center}
+#tq{margin-bottom:8px;font-size:16px;font-weight:500}
+#tres{margin:-2px 0 10px}#tres a{display:block;padding:9px 10px;border-radius:10px;text-decoration:none;color:var(--txt);background:var(--card2);margin-bottom:5px;font-size:14.5px;font-weight:600}
+#tres a small{display:block;font-weight:400;font-size:12px;color:var(--dim);margin-top:2px}#tres a b{color:var(--blue)}
+.pasos{margin:4px 0 10px;padding-left:22px;font-size:14px;line-height:1.5}.pasos li{margin-bottom:6px}.sgp{font-size:14px;line-height:1.5;margin:4px 0 10px}
 #thelp{text-align:left;margin:-2px 2px 12px;line-height:1.45;font-size:12.5px}
 .guia details{border-top:1px solid var(--line);padding:10px 0}
 .guia summary{cursor:pointer;list-style:none;line-height:1.4}.guia summary::-webkit-details-marker{display:none}
@@ -209,6 +213,8 @@ select.fld,.add select,select.sel,.cfgrow select,.base select{background-image:u
 
 <div class="panel">
   <p class="ttl"><span>🧮 Herramientas</span></p>
+  <input class="fld" id="tq" type="search" placeholder="🔍 Buscar: propina, finiquito, cobre, F29…" autocomplete="off" oninput="buscar()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscar(1)}" aria-label="Buscar herramienta">
+  <div id="tres"></div>
   <div class="chips" id="tsel"></div>
   <select class="fld" id="tsub" onchange="setTool(this.value)" aria-label="Herramienta"></select>
   <div class="mini" id="thelp"></div>
@@ -397,7 +403,7 @@ function fillPick(){
   el('cpa').innerHTML=flag(cpA)+' '+cpA;
   el('cpb').innerHTML=flag(cpB)+' '+cpB;
   el('cpname').textContent=cpA+' → '+cpB;
-  if(typeof TD!=='undefined'&&['oro','plata','metal','oromundo','tabla','utmmes','liquido','bruto'].includes(tool))runTool();
+  if(typeof TD!=='undefined'&&['oro','plata','metal','cobre','oromundo','tabla','utmmes','liquido','bruto'].includes(tool))runTool();
 }
 
 /* ---------- buscador de monedas (hoja con filtro por nombre) ---------- */
@@ -855,7 +861,7 @@ function liqShow(r,extra=[]){
 // Un cálculo que sigue esperando datos cuando ya se cambió de herramienta se queda detenido y no escribe.
 const H=p=>{const me=runId;return Promise.resolve(p).then(x=>me===runId?x:new Promise(()=>{}))};
 /* --- herramientas: [categoría, nombre, ui, cálculo] --- */
-const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['fin','Créditos y ahorro'],['cal','Calendario'],['oro','Oro y plata'],['mon','Monedas'],['com','Porcentajes y compras'],['neg','Negocios'],['otras','Otras']];
+const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['fin','Créditos y ahorro'],['cal','Calendario'],['oro','Metales'],['mon','Monedas'],['com','Porcentajes y compras'],['neg','Negocios'],['otras','Otras']];
 const TD={};
 const tool_=(k,cat,nom,ui,calc,o={})=>TD[k]=Object.assign({cat,nom,ui,calc},o);
 
@@ -1201,12 +1207,26 @@ tool_('oro','oro','Oro por quilate y peso',()=>S('om','Moneda',monOpt(),'CLP')+O
 tool_('plata','oro','Plata por ley y peso',()=>S('pm','Moneda',monOpt(),'CLP')+OUT+NOTE('Precio spot de la plata (gold-api.com, onza troy). 925 = plata esterlina; 999 = fina.'),
   ()=>{const oz=R.XAG;if(!oz)return show([['Cargando precio de la plata…','']]);const m=v('pm'),g=oz/OZ;
     el('out').innerHTML=tabla(['Ley','Gramo','Onza','Kilo'],[999,958,925,900,835,800].map(l=>[l+'‰',enMon(g*l/1000,m),enMon(oz*l/1000,m),enMon(g*l,m)]))});
-tool_('metal','oro','Calculadora de metales',()=>R2(S('xm','Metal',[['XAU','Oro'],['XAG','Plata'],['XPT','Platino']],'XAU'),S('xmo','Moneda',monOpt(),'CLP'))+
-  R2(F('xp','Peso','10'),S('xu','Unidad',[['g','Gramos'],['oz','Onzas troy'],['kg','Kilos'],['tola','Tolas']],'g'))+F('xl','Pureza (milésimas, 1000 = puro)','750')+OUT+
-  NOTE('Quilates a milésimas: 24K = 1000, 22K = 917, 18K = 750, 14K = 585, 10K = 417.'),
-  ()=>{const oz=R[v('xm')];if(!oz)return show([['Cargando precio…','']]);
-    const g=n('xp')*({g:1,oz:OZ,kg:1000,tola:TOLA}[v('xu')]),fino=g*n('xl')/1000;
-    show([['Metal fino',nf(fino,3)+' g'],['Valor',enMon(fino*oz/OZ,v('xmo')),'tot'],['En dólares',enMon(fino*oz/OZ,'USD')]])});
+const LB=453.59237, GPR=s=>s==='CU'?R.CU/LB:R[s]/OZ;   // precio por gramo; el cobre cotiza por libra
+tool_('metal','oro','Calculadora de metales',()=>R2(S('xm','Metal',[['XAU','Oro'],['XAG','Plata'],['XPT','Platino'],['CU','Cobre']],'XAU'),S('xmo','Moneda',monOpt(),'CLP'))+
+  R2(F('xp','Peso','10'),S('xu','Unidad',[['g','Gramos'],['oz','Onzas troy'],['lb','Libras'],['kg','Kilos'],['t','Toneladas'],['tola','Tolas']],'g'))+F('xl','Pureza (milésimas, 1000 = puro)','750')+OUT+
+  NOTE('Quilates a milésimas: 24K = 1000, 22K = 917, 18K = 750, 14K = 585, 10K = 417. Para cobre usa 1000 (el precio es de cobre refinado).'),
+  ()=>{const s=v('xm');if(!R[s])return show([['Cargando precio…','']]);
+    const g=n('xp')*({g:1,oz:OZ,lb:LB,kg:1000,t:1e6,tola:TOLA}[v('xu')]),fino=g*n('xl')/1000,val=fino*GPR(s);
+    show([['Metal fino',fino>=1e4?nf(fino/1000,3)+' kg':nf(fino,3)+' g'],['Valor',enMon(val,v('xmo')),'tot'],['En dólares',enMon(val,'USD')],['Precio por gramo puro',enMon(GPR(s),v('xmo'))]])});
+tool_('cobre','oro','Cobre: precio, chatarra y cables',()=>S('cum','Moneda',monOpt(),'CLP')+OUT+
+  '<p class="flab" style="margin-top:14px">¿Cuánto vale mi cobre?</p>'+R2(F('cup','Peso','10'),S('cuu','Unidad',[['kg','Kilos'],['lb','Libras'],['g','Gramos'],['t','Toneladas']],'kg'))+
+  F('cuc','% del precio que te pagan (chatarra limpia paga más que sucia)','100')+QK('cuc',[100,90,80,70,60],'%')+'<div class="big" id="cur"></div>'+
+  '<p class="flab" style="margin-top:14px">Cobre dentro de un cable</p>'+R2(S('cus','Sección de cada hilo',[1,1.5,2.5,4,6,10,16,25,35,50,70,95,120].map(x=>[x,nf(x,1)+' mm²']),2.5),F('cun','Conductores','3'))+
+  F('cul','Metros de cable','100')+'<table class="tbl" id="cuo"></table>'+
+  NOTE('Precio del cobre refinado (Bolsa de Metales de Londres) informado por el Banco Central, en dólares por libra. Las chatarrerías pagan bastante menos y según limpieza: sin forro, sin estaño ni pintura vale más. Peso del cable: sección × largo × 8,96 g/cm³ (densidad del cobre); el forro no cuenta.'),
+  ()=>{if(!R.CU)return show([['Cargando precio del cobre…','']]);const m=v('cum'),g=GPR('CU');
+    show([['Libra (453,6 g)',enMon(R.CU,m)+' · US$ '+nf(R.CU/R.USD,3),'tot'],['Kilo',enMon(g*1000,m),'tot'],['Tonelada',enMon(g*1e6,m)+' · US$ '+nf(g*1e6/R.USD,0)],['Gramo',enMon(g,m)]]);
+    const kg=n('cup')*({kg:1,lb:LB/1000,g:.001,t:1000}[v('cuu')]),pc=n('cuc')/100;
+    el('cur').textContent=enMon(kg*1000*g*pc,m);
+    const ck=n('cus')*n('cun')*n('cul')*8.96/1000;
+    el('cuo').innerHTML=tabla(['Cable','Cobre','Valor'],[[nf(n('cul'),0)+' m · '+nf(n('cun'),0)+' × '+nf(+v('cus'),1)+' mm²',nf(ck,2)+' kg',enMon(ck*1000*g*pc,m)],
+      ['Por metro',nf(ck/(n('cul')||1)*1000,0)+' g',enMon(ck/(n('cul')||1)*1000*g*pc,m)]])});
 tool_('oromundo','oro','Oro en otras monedas',()=>OUT+NOTE('Mismo precio spot, expresado en la moneda de cada país.'),()=>{
   const oz=R.XAU;if(!oz)return show([['Cargando precio del oro…','']]);
   const L2=['USD','EUR','GBP','CHF','JPY','CNY','INR','AED','SAR','QAR','TRY','RUB','SGD','HKD','MYR','AUD','CAD','SEK','MXN','BRL','ARS','COP','PEN','BOB','UYU','PYG','VES','PAB','BSD','BZD'].filter(c=>R[c]);
@@ -1522,6 +1542,49 @@ async()=>{const y=+v('ry');vis('g_rg',v('rg')==='efe');const u=await H(utmOf(y+'
     ['Crédito por impuesto único','−'+clp(n('riu'))],['Retenciones de honorarios'+(v('rr').trim()===''?' (estimadas)':''),'−'+clp(ret)],
     n('rc')?['Cotizaciones con cargo a la retención',clp(n('rc'))]:null,[res>=0?'Resultado: a pagar':'Resultado: devolución',clp(Math.abs(res)),'tot']])});
 
+// Guía de formularios del SII
+const PASOS=a=>'<ol class="pasos">'+a.map(x=>'<li>'+x+'</li>').join('')+'</ol>';
+const SIIG={
+ f29:['F29 · Declaración mensual de IVA',
+  'Lo presenta <b>todo el que tiene inicio de actividades en primera categoría</b> (negocio, empresa, comercio), aunque no haya vendido nada ese mes. También quien retiene honorarios o paga sueldos. Plazo: <b>día 12</b> del mes siguiente, o <b>día 20</b> si emite documentos electrónicos y declara por internet.',
+  ['Entra a <b>sii.cl → Servicios online → Impuestos mensuales → Declaración mensual (F29)</b> con tu RUT y clave tributaria.','Elige el mes. El SII te muestra una <b>propuesta</b> ya llenada con tus facturas electrónicas (Registro de Compras y Ventas).','Revisa que estén <b>todas tus ventas</b> (facturas y boletas) y <b>todas tus compras</b> con IVA del giro. Si falta algo, corrígelo antes en el Registro de Compras y Ventas.','Revisa el <b>PPM</b>: es un adelanto del impuesto anual, un % de tus ventas netas.','Si pagaste honorarios o sueldos, anota las retenciones.','Envía y paga en línea (o deja sin pago si sale cero). Guarda el certificado.'],
+  [['502 / 503','IVA y cantidad de facturas emitidas'],['110 / 111','Cantidad e IVA de boletas emitidas'],['538','Total débito: IVA de tus ventas'],['519 / 520','Cantidad e IVA de facturas recibidas (compras del giro)'],['504','Remanente de crédito del mes anterior'],['537','Total crédito: IVA de tus compras'],['89','IVA a pagar (débito − crédito)'],['77','Remanente: crédito que sobra para el mes siguiente'],['563','Ventas netas del mes (base del PPM)'],['115 / 62','Tasa y monto del PPM'],['151','Retención de boletas de honorarios recibidas'],['48','Impuesto único de trabajadores (sueldos)'],['91','Total a pagar dentro de plazo']],
+  'Sin ventas ni compras igual se declara («sin movimiento»): no hacerlo genera multa. Usa el «Simulador F29» para estimar.'],
+ f22:['F22 · Operación Renta (declaración anual)',
+  'Se hace en <b>abril</b> por lo ganado el año anterior. Están obligados quienes emitieron boletas de honorarios, tienen más de un empleador, negocios, arriendos, inversiones o quieren pedir devolución. Con un solo sueldo normalmente no es obligatorio, pero puede convenir (por ejemplo, por intereses del dividendo).',
+  ['Entra a <b>sii.cl → Servicios online → Renta → Declarar renta (F22)</b>.','Abre la <b>propuesta</b>: el SII la arma con lo que informaron tus empleadores, bancos y quienes te pagaron honorarios.','Revisa sueldos, honorarios y retenciones. Si algo falta, espera a que lo informen o corrígelo en el formulario.','Agrega lo que la propuesta no sabe: intereses del crédito hipotecario (rebaja art. 55 bis), APV régimen B, gastos efectivos si son mayores que el 30% presunto.','Revisa el resultado: <b>devolución</b> (elige cuenta bancaria) o <b>pago</b>.','Envía y guarda el certificado. Puedes ver el estado en «Consultar estado de declaración».'],
+  [['Propuesta','Borrador hecho por el SII; tú decides si aceptarla'],['Global complementario','Impuesto anual sobre todo lo que ganaste'],['Retenciones','Lo que ya se pagó por adelantado (honorarios, impuesto único)'],['Cotizaciones de independiente','Salud, pensión y seguros que se pagan con la retención de honorarios'],['Rectificar','Corregir una declaración ya enviada']],
+  'Si la declaración queda «observada», el SII te avisa qué revisar: se corrige con una rectificatoria. Usa la herramienta «Operación Renta» para estimar.'],
+ bhe:['Boleta de honorarios electrónica',
+  'La emite quien presta un servicio como independiente (consultas, asesorías, turnos). Requiere <b>inicio de actividades en segunda categoría</b>. La retención (15,25% en 2026) la paga una empresa si te contrata; si la boleta es a una persona, puedes retener tú.',
+  ['Entra a <b>sii.cl → Servicios online → Boletas de honorarios electrónicas → Emisor de boleta de honorarios → Emitir boleta</b>.','Elige quién retiene: <b>el receptor</b> (empresa) o <b>el contribuyente</b> (tú, si es a una persona sin retención).','Escribe el RUT, nombre y dirección del cliente.','Describe el servicio y el <b>monto bruto</b> (antes de retención).','Revisa la vista previa: bruto, retención y líquido. Emite y envía el PDF por correo.','Si te equivocas, anula la boleta en el mismo menú (antes de que el cliente la declare).'],
+  [['Bruto','Lo que cobras en total'],['Retención','% que se guarda para tus impuestos y cotizaciones'],['Líquido','Lo que te llega a la cuenta'],['Boleta de terceros','La emite el que paga, por alguien sin inicio de actividades']],
+  'En abril esas retenciones se cruzan en tu F22: pagan tus cotizaciones y el resto puede volver como devolución. Usa «Boleta de honorarios» para calcular bruto y líquido.'],
+ ini:['Inicio de actividades',
+  'Es avisar al SII que empiezas a ganar plata con una actividad. Es gratis y en línea. Sin él no puedes emitir boletas ni facturas.',
+  ['Entra a <b>sii.cl → Servicios online → RUT e Inicio de actividades → Inicio de actividades</b>.','Elige si eres <b>persona natural</b> o empresa.','Elige la <b>actividad económica</b> (buscador por palabra: «médico», «almacén»…). Segunda categoría = honorarios; primera = negocio con IVA.','Indica tu domicilio y si tienes local, bodega o sucursal.','Si vendes con IVA, el sistema te puede pedir respaldos del domicilio.','Envía y descarga el comprobante. Ya puedes emitir boletas o facturas electrónicas.'],
+  [['Primera categoría','Comercio, empresas, ventas con IVA → declara F29'],['Segunda categoría','Profesionales independientes → boletas de honorarios'],['Código de actividad','Número que identifica tu giro'],['Régimen','Pro Pyme, general, etc.: define cómo pagas renta']],
+  'Si después cambias de domicilio o agregas actividades, se hace en «Modificación y actualización de la información».'],
+ fac:['Factura electrónica (sistema gratuito del SII)',
+  'Para negocios con inicio de actividades en primera categoría. La factura respalda la venta y le permite al comprador usar el IVA como crédito.',
+  ['Entra a <b>sii.cl → Servicios online → Factura electrónica → Sistema de facturación gratuito del SII</b>.','La primera vez inscríbete y acepta las condiciones.','Ve a <b>Emitir documento → Factura electrónica</b>.','Escribe el RUT del cliente: los datos se completan solos.','Agrega productos o servicios con <b>precio neto</b> (sin IVA): el sistema suma el 19%.','Firma y envía. Mándale el PDF al cliente. La venta aparece sola en tu Registro de Compras y Ventas y en la propuesta del F29.'],
+  [['Neto','Precio sin IVA'],['IVA','19% del neto'],['Exenta','Venta sin IVA (servicios exentos)'],['Nota de crédito','Anula o rebaja una factura emitida'],['Guía de despacho','Respalda el traslado de mercadería']],
+  'Para anular una factura no se borra: se emite una nota de crédito que la referencia.'],
+ dj:['Declaraciones juradas de marzo (1879, 1887)',
+  'Las presentan en <b>marzo</b> quienes pagaron sueldos o boletas de honorarios el año anterior. Con ellas el SII arma la propuesta de renta de los trabajadores y prestadores.',
+  ['Entra a <b>sii.cl → Servicios online → Declaraciones juradas → Renta</b>.','Elige el formulario: <b>1887</b> si pagaste sueldos, <b>1879</b> si pagaste o retuviste boletas de honorarios.','Llena en línea (pocas filas) o sube el archivo (muchas filas).','Por cada persona: RUT, montos por mes y retenciones.','Envía y revisa que quede «recibida».','Emite los certificados para cada trabajador o prestador.'],
+  [['DJ 1887','Sueldos pagados e impuesto único retenido'],['DJ 1879','Honorarios pagados y retenciones'],['Certificado','Resumen anual que se entrega a cada persona']],
+  'Los plazos exactos varían cada año: revisa el «Calendario tributario» o el suplemento de renta del SII.'],
+ ter:['Término de giro',
+  'Se hace al cerrar definitivamente un negocio o dejar de emitir boletas. Plazo: <b>dentro de 2 meses</b> desde que terminas la actividad.',
+  ['Antes, revisa que no debas F29, multas ni documentos sin declarar.','Entra a <b>sii.cl → Servicios online → Término de giro</b>.','Indica la fecha de término y responde el cuestionario.','El SII revisa tu situación; puede pedirte antecedentes.','Paga los impuestos finales si corresponden (balance, retiros).','Descarga el certificado de término de giro.'],
+  [['Término de giro','Cierre total ante el SII'],['Cese de actividades','Para algunas personas naturales, trámite más simple sin revisión completa']],
+  'Si solo dejas de dar boletas por un tiempo, no es obligatorio el término de giro.']};
+tool_('sii','imp','Guía de formularios del SII (paso a paso)',()=>S('sg','¿Qué quieres hacer?',Object.entries(SIIG).map(([k,g])=>[k,g[0]]),'f29')+'<div id="sgo"></div>'+
+  NOTE('Guía orientativa. Los nombres de los menús del SII pueden cambiar. Ante dudas: '+L('https://www.sii.cl','sii.cl')+' o Mesa de Ayuda del SII.'),
+()=>{const [t,q,p,c,o]=SIIG[v('sg')];el('sgo').innerHTML='<p class="flab" style="margin-top:6px">¿Qué es y quién lo hace?</p><p class="sgp">'+q+'</p><p class="flab">Paso a paso</p>'+PASOS(p)+
+  '<p class="flab">'+(v('sg')==='f29'?'Códigos más usados':'Palabras que vas a ver')+'</p><table class="tbl">'+tabla([v('sg')==='f29'?'Código':'Término','Qué significa'],c)+'</table><p class="sgp" style="margin-top:10px">💡 '+o+'</p>'});
+
 // Calendario
 tool_('calendario','cal','Calendario tributario y previsional',()=>S('cz','Mostrar',[[60,'Próximos 60 días'],[120,'Próximos 4 meses'],[365,'Próximos 12 meses']],120)+OUT+
   NOTE('F29: día 12, o día 20 si es facturador electrónico o emite boletas electrónicas y declara por internet. Cotizaciones: día 10, o día 13 si se declaran y pagan en forma electrónica (sin prórroga). Si un vencimiento del SII o de las cotizaciones al día 10 cae en sábado, domingo, feriado o 31 de diciembre, pasa al día hábil siguiente (art. 36 del Código Tributario). Contribuciones, permisos y patentes: revisa prórrogas de la TGR o tu municipalidad.'),
@@ -1560,11 +1623,11 @@ async()=>{const a=new Date(v('ha1')+'T12:00'),b=new Date(v('ha2')+'T12:00');cons
 const CATH={
  ind:'Valores oficiales que cambian con el tiempo (UTM, UF, IPC) y cómo actualizar montos con ellos.',
  multas:'Cuánto es en pesos una multa o un trámite que te cobran en UTM o UTA.',
- imp:'Impuestos: IVA, boletas de honorarios, declaración mensual (F29) y anual (Renta).',
+ imp:'Impuestos: IVA, boletas de honorarios, declaración mensual (F29) y anual (Renta), y guía paso a paso de los formularios del SII.',
  trab:'Todo lo del sueldo: cuánto te llega, horas extra, finiquito, vacaciones y derechos laborales.',
  fin:'Préstamos, ahorro e inversiones: cuánto pagas, cuánto ganas y cuánto te come la inflación.',
  cal:'Fechas importantes: cuándo pagar impuestos, feriados y cuántos días hábiles hay.',
- oro:'Cuánto vale tu oro o plata según su pureza y peso.',
+ oro:'Cuánto vale tu oro, plata, platino o cobre según su pureza y peso.',
  mon:'Tablas y estadísticas de las monedas que estás comparando.',
  com:'Cuentas del día a día: porcentajes, propinas, ofertas y qué envase conviene.',
  neg:'Para vender: a qué precio vender, cuánto ganas y cuánto IVA pagas.',
@@ -1604,6 +1667,8 @@ const HELP={
  plata:'Lo mismo para la plata, según su pureza (ley 925, 950...).',
  metal:'Valor de oro, plata o platino según peso, unidad, pureza y moneda. Ej.: 18K = 750 milésimas.',
  oromundo:'El precio del oro en otras monedas del mundo.',
+ cobre:'Precio del cobre por libra, kilo y tonelada. Pones los kilos de chatarra o los metros de cable y te dice cuánto cobre hay y cuánto vale.',
+ sii:'Elige el trámite (F29, Renta, boleta de honorarios, factura, inicio de actividades…) y te dice quién lo hace, dónde hacer clic y qué significa cada casilla.',
  tabla:'Tabla rápida de equivalencias y cómo se ha movido el par de monedas que comparas.',
  pct:'Escribe dos números (A y B) y busca la fila que responde tu duda. Ej.: ¿cuánto es el 15% de 80.000?',
  propina:'Pones la cuenta, la propina y cuántos son: te dice cuánto paga cada uno. Si anotas lo que comió cada uno (Ana 12.000), cada uno paga lo suyo.',
@@ -1637,6 +1702,18 @@ function toggleGuia(){guia=!guia;tools()}
 function guiaHTML(cat){return '<div class="guia">'+CATS.map(([c,nm])=>`<details${c===cat?' open':''}><summary><b>${nm}</b> <span>${CATH[c]||''}</span></summary>`+
   Object.keys(TD).filter(k=>TD[k].cat===c).map(k=>`<p><a href="#" onclick="guia=false;setTool('${k}');return false">${TD[k].nom}</a><br>${HELP[k]||''}</p>`).join('')+'</details>').join('')+
   '<p class="mini">Toca el nombre de una herramienta para abrirla. Los campos con flecha ▾ son listas para elegir; los demás se escriben. Todo se calcula solo al escribir y la app recuerda lo último que pusiste.</p></div>'}
+
+/* --- buscador de herramientas --- */
+const sinT=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const KW={iva:'impuesto ventas neto bruto 19',propina:'restaurant cuenta dividir pagar cada uno',gastos:'dividir viaje asado deuda',cobre:'chatarra cable libra',sii:'formulario declarar f29 f22 boleta factura inicio actividades termino giro declaracion jurada tramite',
+ finiquito:'despido indemnizacion',prestamo:'credito cuota tabla amortizacion',compuesto:'interes',liquido:'sueldo',bruto:'sueldo',metal:'oro plata platino cobre gramo',feriados:'festivo',habiles:'dias plazo'};
+function buscar(go){const q=sinT(el('tq').value.trim()),box=el('tres');if(!q){box.innerHTML='';return}
+  const w=q.split(/\s+/),cn=Object.fromEntries(CATS);
+  const r=Object.keys(TD).map(k=>{const nm=sinT(TD[k].nom),tx=nm+' '+sinT(cn[TD[k].cat]+' '+(HELP[k]||'')+' '+(KW[k]||'')+' '+k);
+    if(!w.every(x=>tx.includes(x)))return null;return [k,w.reduce((s,x)=>s+(nm.includes(x)?3:0)+(nm.startsWith(x)?2:0)+(sinT(KW[k]||'').includes(x)?1:0),0)]}).filter(Boolean).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(go&&r[0])return abrirB(r[0][0]);
+  box.innerHTML=r.length?r.map(([k])=>`<a href="#" onclick="abrirB('${k}');return false"><b>${TD[k].nom}</b> · ${cn[TD[k].cat]}<small>${HELP[k]||''}</small></a>`).join(''):'<p class="mini">Nada con «'+el('tq').value.replace(/</g,'')+'». Prueba otra palabra o abre la Guía.</p>'}
+function abrirB(k){el('tq').value='';el('tres').innerHTML='';setTool(k);el('tsel').scrollIntoView({behavior:'smooth',block:'start'})}
 
 /* --- motor del panel --- */
 let tool=TD[LS.get('tool','iva')]?LS.get('tool','iva'):'iva', runId=0;
@@ -1710,7 +1787,7 @@ async function cardSeries(){
 hchips();applyCfg();tools();load();hist().then(cardSeries);compare();
 // refresca al volver a la app
 // Versión publicada: si GitHub Pages ya tiene otra, se recarga saltándose la caché (max-age=600).
-const VER='2026.10.04-4';
+const VER='2026.10.04-5';
 async function chkVer(){if(!location.hostname.endsWith('github.io'))return;
   try{const t=await fetch(location.pathname+'?nv='+Date.now(),{cache:'no-store'}).then(r=>r.text()),m=t.match(/const VER='([^']+)'/);
     if(m&&m[1]!==VER&&sessionStorage.getItem('ver')!==m[1]){sessionStorage.setItem('ver',m[1]);location.replace(location.pathname+'?v='+m[1])}}catch(e){}}
