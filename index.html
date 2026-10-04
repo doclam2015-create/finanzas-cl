@@ -846,7 +846,7 @@ function liqShow(r,extra=[]){
 // Un cálculo que sigue esperando datos cuando ya se cambió de herramienta se queda detenido y no escribe.
 const H=p=>{const me=runId;return Promise.resolve(p).then(x=>me===runId?x:new Promise(()=>{}))};
 /* --- herramientas: [categoría, nombre, ui, cálculo] --- */
-const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['fin','Créditos y ahorro'],['cal','Calendario'],['oro','Oro y plata'],['mon','Monedas'],['otras','Otras']];
+const CATS=[['ind','UTM · UF · IPC'],['multas','Multas y trámites'],['imp','Impuestos'],['trab','Sueldo y trabajo'],['fin','Créditos y ahorro'],['cal','Calendario'],['oro','Oro y plata'],['mon','Monedas'],['com','Porcentajes y compras'],['neg','Negocios'],['otras','Otras']];
 const TD={};
 const tool_=(k,cat,nom,ui,calc,o={})=>TD[k]=Object.assign({cat,nom,ui,calc},o);
 
@@ -1075,8 +1075,12 @@ tool_('patente','multas','Patente comercial',()=>M('dm','Mes')+F('pc','Capital p
     show([['Capital × tasa',clp(raw)],['Patente anual estimada',clp(p),'tot'],['Semestral',clp(p/2)],['Límites','1 a 8.000 UTM · '+clp(u)+' a '+clp(8000*u)]])});
 
 // Impuestos
-tool_('iva','imp','IVA (19%)',()=>S('im','Tengo el',[['neto','Valor neto'],['bruto','Valor bruto (con IVA)']],'neto')+F('ia','Monto en pesos','100.000')+OUT,
-  ()=>{const x=n('ia'),ne=v('im')==='neto'?x:x/1.19;show([['Valor neto',clp(ne)],['IVA (19%)',clp(ne*.19)],['Total (bruto)',clp(ne*1.19),'tot']])});
+tool_('iva','imp','IVA (19%) e impuesto a las ventas',()=>R2(S('im','Tengo el',[['neto','Valor neto'],['bruto','Valor bruto (con IVA)'],['iva','Monto del IVA']],'neto'),F('it','Tasa (%)','19'))+
+  R2(F('ia','Monto en pesos','100.000'),F('iq','Cantidad','1'))+OUT+
+  NOTE('Neto × 1,19 = bruto; bruto ÷ 1,19 = neto. Cambia la tasa para otros países: IGV de Perú 18%, IVA de Argentina y España 21%, o el impuesto a las ventas de EE. UU., que varía por estado y se suma al precio de lista.'),
+  ()=>{const x=n('ia'),t=(v('it').trim()===''?19:n('it'))/100,q=Math.max(n('iq'),1),m=v('im'),ne=m==='neto'?x:m==='bruto'?x/(1+t):t?x/t:0,p=nf(t*100,2)+'%';
+    show([['Valor neto',clp(ne)],['IVA ('+p+')',clp(ne*t)],['Total (bruto)',clp(ne*(1+t)),'tot'],['El impuesto es del precio final',nf(t/(1+t)*100,2)+'%'],
+      q>1?['Neto × '+nf(q,0),clp(ne*q)]:null,q>1?['IVA × '+nf(q,0),clp(ne*t*q)]:null,q>1?['Total × '+nf(q,0),clp(ne*(1+t)*q),'tot']:null])});
 tool_('honor','imp','Boleta de honorarios',()=>S('hm','Calcular desde',[['bruto','Monto bruto de la boleta'],['liq','Líquido que quiero recibir']],'bruto')+
   R2(F('ha','Monto','100.000'),F('ht','Retención %',nf(LEY.HON[new Date().getFullYear()]||17)))+OUT+
   NOTE('Retención 2025: 14,5% · 2026: 15,25% · 2027: 16% · 2028 en adelante: 17% (Ley 21.133). La retención se descuenta del bruto y la paga quien recibe la boleta. '+L('https://www.sii.cl','SII')),
@@ -1210,10 +1214,132 @@ tool_('tabla','mon','Tabla de montos y estadísticas',()=>OUT+'<table class="tbl
       ['Variación',nf((s[s.length-1]/s[0]-1)*100,2)+'%'],['Volatilidad diaria',nf(sd*100,2)+'%']])}else el('ts').innerHTML='';
 });
 
+// Porcentajes y compras
+// Listas «Nombre monto», una por línea (propina por persona y gastos compartidos).
+const lista=s=>s.split('\n').map(l=>l.trim()).filter(Boolean).map((l,i)=>{const m=l.match(/^(.*?)[\s:=\-]*\$?\s*(-?[\d.,]+)\s*$/);return m?{nom:m[1].trim()||'Persona '+(i+1),x:numv(m[2])}:{nom:l,x:0}});
+const TA=(id,lab,val='',ph='')=>`<label class="flab" for="${id}">${lab}</label><textarea class="fld" id="${id}" rows="4" placeholder="${ph}">${val}</textarea>`;
+const QK=(id,vals,suf='')=>'<div class="chips">'+vals.map(x=>`<button class="chip" onclick="setV('${id}','${x}')">${x}${suf}</button>`).join('')+'</div>';
+function setV(id,x){el(id).value=x;runTool()}
+const redo=(x,r)=>r>0?Math.ceil(x/r-1e-9)*r:x;
+const pesos=x=>Math.abs(x)<100?'$'+nf(x,2):clp(x);
+tool_('pct','com','Porcentajes',()=>R2(F('pa','A','5'),F('pb','B','100'))+OUT+NOTE('Escribe dos números y elige la fila que responde tu pregunta.'),()=>{const a=n('pa'),b=n('pb');
+  show([[`${nf(a)}% de ${nf(b)}`,nf(a*b/100,4),'tot'],[`${nf(a)} es el … % de ${nf(b)}`,b?nf(a/b*100,4)+'%':'—'],[`${nf(a)} es el ${nf(b)}% de …`,b?nf(a*100/b,4):'—'],
+    [`Variación de ${nf(a)} a ${nf(b)}`,a?nf((b/a-1)*100,4)+'%':'—'],[`${nf(b)} + ${nf(a)}%`,nf(b*(1+a/100),4)],[`${nf(b)} − ${nf(a)}%`,nf(b*(1-a/100),4)],
+    [`${nf(b)} ya incluye +${nf(a)}%: valor original`,nf(b/(1+a/100),4)],[`${nf(b)} ya tiene −${nf(a)}%: valor original`,a<100?nf(b/(1-a/100),4):'—'],
+    [`${nf(a)}% de ${nf(b)}% (porcentaje de porcentaje)`,nf(a*b/100,4)+'%'],[`Diferencia entre ${nf(a)}% y ${nf(b)}%`,nf(b-a,4)+' puntos porcentuales']])});
+tool_('propina','com','Propina y dividir la cuenta',()=>R2(F('tpm','Total de la cuenta','45.000'),F('tpp','Personas','3'))+
+  R2(F('tpx','Propina (%)','10'),S('tpr','Redondear lo que paga cada uno',[[0,'Sin redondeo'],[10,'A $10'],[100,'A $100'],[500,'A $500'],[1000,'A $1.000']],100))+QK('tpx',[0,5,10,12,15,20],'%')+
+  R2(S('tpb','Propina sobre',[['total','Total'],['neto','Neto (sin IVA)']],'total'),F('tpd','Descuento o cupón ($)','0'))+
+  TA('tpl','Consumo de cada uno (opcional, una persona por línea)','','Ana 12.000\nJuan 15.500\nSofía 9.000')+OUT+'<table class="tbl" id="tpo" style="margin-top:12px"></table>'+
+  NOTE('En Chile la propina sugerida es 10% y es voluntaria. Sin lista, la cuenta se divide en partes iguales. Con lista, cada uno paga lo que consumió, su parte de lo compartido (lo que no está en la lista, repartido entre todos) y la propina en proporción a lo suyo. Si hay más personas que nombres, el resto solo paga lo compartido. El redondeo es hacia arriba y lo que sobra queda como propina extra.'),
+()=>{const L=lista(v('tpl')),tot=Math.max(n('tpm')-n('tpd'),0),P=Math.max(Math.round(n('tpp')),L.length,1),pc=n('tpx')/100,r=+v('tpr');
+  const base=v('tpb')==='neto'?tot/1.19:tot,pr=base*pc,T=tot+pr;
+  const rows=[['Cuenta'+(n('tpd')?' con descuento':''),clp(tot)],['Propina ('+nf(pc*100,1)+'%)',clp(pr)],['Total con propina',clp(T),'tot'],['Personas',nf(P,0)]];
+  if(!L.length){const c=T/P,cr=redo(c,r);
+    show([...rows,['Cada uno paga',clp(c),'tot'],r?['Cada uno paga (redondeado a '+clp(r)+')',clp(cr),'tot']:null,['Propina por persona',clp(pr/P)],r&&cr*P-T>=1?['Sobra por el redondeo (propina extra)',clp(cr*P-T)]:null]);
+    el('tpo').innerHTML=tabla(['Propina','Total','Por persona'],[0,5,10,15,20].map(p=>{const t=tot+base*p/100;return [p+'%',clp(t),clp(t/P)+(r?' → '+clp(redo(t/P,r)):'')]}));return}
+  const suma=L.reduce((a,p)=>a+p.x,0),comp=tot-suma;
+  if(comp<-0.5){show([...rows,['La lista suma más que la cuenta',clp(suma)]]);el('tpo').innerHTML='';return}
+  const gente=[...L];for(let k=L.length;k<P;k++)gente.push({nom:'Persona '+(k+1),x:0});
+  let sumR=0;const fil=gente.map(p=>{const sub=p.x+comp/P,pp=tot?pr*sub/tot:pr/P,t=sub+pp,tr=redo(t,r);sumR+=tr;return [p.nom,clp(sub),clp(pp),clp(t)].concat(r?[clp(tr)]:[])});
+  show([...rows,['Suma de la lista',clp(suma)],['Compartido (fuera de la lista)',clp(comp)],['Compartido por persona',clp(comp/P)],r&&sumR-T>=1?['Sobra por el redondeo (propina extra)',clp(sumR-T)]:null]);
+  el('tpo').innerHTML=tabla(['Persona','Consumo','Propina','Paga'].concat(r?['Redondeado']:[]),fil)});
+tool_('gastos','com','Dividir gastos (quién le debe a quién)',()=>TA('gsl','Lo que pagó cada uno (una persona por línea, 0 si no pagó)','Ana 30.000\nJuan 12.000\nSofía 0\nPedro 6.000')+
+  F('gsx','Personas sin anotar que también comparten','0')+OUT+'<p class="flab" style="margin-top:14px">Transferencias para quedar a mano</p><table class="tbl" id="gso"></table>'+
+  NOTE('Para viajes, asados, arriendos o compras en grupo: todos pagan la misma parte. Las transferencias van de quien debe a quien puso de más, con el menor número de pagos posible en la práctica.'),
+()=>{const L=lista(v('gsl'));for(let k=0;k<Math.round(n('gsx'));k++)L.push({nom:'Persona '+(L.length+1),x:0});
+  if(!L.length){show([['Escribe quién pagó cuánto','—']]);el('gso').innerHTML='';return}
+  const tot=L.reduce((a,p)=>a+p.x,0),c=tot/L.length;
+  show([['Gasto total',clp(tot)],['Personas',nf(L.length,0)],['A cada uno le corresponde',clp(c),'tot'],...L.map(p=>[p.nom+' (pagó '+clp(p.x)+')',p.x-c>=0.5?'recibe '+clp(p.x-c):c-p.x>=0.5?'debe '+clp(c-p.x):'a mano'])]);
+  const deu=L.map(p=>({nom:p.nom,b:p.x-c})).filter(p=>p.b<=-0.5).sort((a,b)=>a.b-b.b),acr=L.map(p=>({nom:p.nom,b:p.x-c})).filter(p=>p.b>=0.5).sort((a,b)=>b.b-a.b),tr=[];
+  for(let i=0,j=0;i<deu.length&&j<acr.length;){const m=Math.min(-deu[i].b,acr[j].b);tr.push([deu[i].nom,acr[j].nom,clp(m)]);deu[i].b+=m;acr[j].b-=m;if(deu[i].b>-0.5)i++;if(acr[j].b<0.5)j++}
+  el('gso').innerHTML=tr.length?tabla(['Quién','A quién','Monto'],tr):tabla(['Nadie debe nada'],[])});
+const PROMO={'2x1':[2,1],'3x2':[3,2],'4x3':[4,3],'2a50':[2,1.5],'2a70':[2,1.3]};
+tool_('descuento','com','Descuento y ofertas',()=>S('dsm','Tengo el',[['orig','Precio original'],['final','Precio con descuento (busco el original)']],'orig')+
+  R2(F('dsp','Precio por unidad','19.990'),F('dsc','Unidades','1'))+R2(F('ds1','Descuento (%)','30'),F('ds2','Descuento adicional (%)','0'))+QK('ds1',[10,15,20,25,30,40,50,70],'%')+
+  R2(F('dsk','Cupón o rebaja fija ($)','0'),S('dso','Promoción',[['','Ninguna'],['2x1','2x1'],['3x2','3x2'],['4x3','4x3'],['2a50','2ª unidad 50% dcto.'],['2a70','2ª unidad 70% dcto.']],''))+OUT+
+  NOTE('El descuento adicional se aplica sobre el precio ya rebajado: 30% + 20% no es 50%, es 44%. Las promociones cuentan grupos completos de unidades (con 2x1, 3 unidades pagan 2). El cupón se descuenta del total.'),
+()=>{const p=n('dsp'),q=Math.max(Math.round(n('dsc')),1),f=(1-n('ds1')/100)*(1-n('ds2')/100);
+  if(v('dsm')==='final'){const o=f>0?p/f:0;return show([['Precio original',clp(o),'tot'],['Descuento total',nf((1-f)*100,2)+'%'],['Ahorro por unidad',clp(o-p)],q>1?['Ahorro en '+q+' unidades',clp((o-p)*q)]:null])}
+  const [g,pg]=PROMO[v('dso')]||[1,1],gr=Math.floor(q/g),pag=gr*pg+q-gr*g,bruto=p*q,tot=Math.max(p*f*pag-n('dsk'),0),ah=bruto-tot;
+  show([['Precio por unidad con descuento',clp(p*f)],['Precio normal ('+q+' u.)',clp(bruto)],v('dso')?['Unidades que pagas',nf(pag,1)+' de '+q]:null,n('dsk')?['Cupón','−'+clp(n('dsk'))]:null,
+    ['Total a pagar',clp(tot),'tot'],['Ahorras',clp(ah),'tot'],['Descuento real',bruto?nf(ah/bruto*100,2)+'%':'—'],q>1?['Precio final por unidad',clp(tot/q)]:null])});
+const UNI={g:['masa',.001],kg:['masa',1],ml:['vol',.001],l:['vol',1],u:['uni',1],m:['largo',1]},UBASE={masa:'kg',vol:'litro',uni:'unidad',largo:'metro'};
+const UOP=[['u','unidades'],['g','g'],['kg','kg'],['ml','ml / cc'],['l','litros'],['m','metros']];
+const qv=s=>{const m=String(s).match(/^\s*([\d.,]+)\s*[x×*]\s*([\d.,]+)\s*$/i);return m?numv(m[1])*numv(m[2]):numv(s)};
+tool_('unitario','com','Precio por cantidad (cuál conviene)',()=>[['A','2.990','1','kg'],['B','1.690','500','g'],['C','',''],['D','','']].map(([L,p,q,u],k)=>
+  R2(F('uq'+k,'Precio '+L,p),T('uc'+k,'Cantidad',q,'inputmode="decimal"'),S('uu'+k,'Unidad',UOP,u||'g'))).join('')+
+  R2(T('ux','¿Cuánto necesitas? (opcional)','','inputmode="decimal"'),S('uxu','Unidad',UOP,'kg'))+OUT+'<table class="tbl" id="uqo" style="margin-top:12px"></table>'+
+  NOTE('Compara envases de distinto tamaño con el precio por kilo, litro, metro o unidad. En cantidad puedes escribir packs: 6x350 son 6 latas de 350 ml.'),
+()=>{const P=[...'ABCD'].map((L,k)=>({L,p:n('uq'+k),q:qv(v('uc'+k)),u:v('uu'+k)})).filter(o=>o.p>0&&o.q>0);el('uqo').innerHTML='';
+  if(!P.length)return show([['Escribe precio y cantidad','—']]);
+  const ti=UNI[P[0].u][0];if(P.some(o=>UNI[o.u][0]!==ti))return show([['Hay unidades que no se pueden comparar (peso, volumen, largo o unidades)','—']]);
+  P.forEach(o=>o.pu=o.p/(o.q*UNI[o.u][1]));const mn=Math.min(...P.map(o=>o.pu)),mx=Math.max(...P.map(o=>o.pu)),b=UBASE[ti],best=P.find(o=>o.pu===mn);
+  const nd=qv(v('ux'))*UNI[v('uxu')][1],okN=nd>0&&UNI[v('uxu')][0]===ti;
+  show([['Conviene',best.L+' · '+pesos(mn)+' por '+b,'tot'],P.length>1?['Ahorro frente a la más cara',nf((1-mn/mx)*100,1)+'%']:null,okN?['Lo que necesitas comprando '+best.L,clp(mn*nd),'tot']:null]);
+  el('uqo').innerHTML=tabla(['Producto','Por '+b,'Diferencia'].concat(okN?['Lo que necesitas']:[]),P.map(o=>[o.L+(o.pu===mn?' ✓':''),pesos(o.pu),o.pu===mn?'más barata':'+'+nf((o.pu/mn-1)*100,1)+'%'].concat(okN?[clp(o.pu*nd)]:[])))});
+tool_('variacion','com','Aumento o disminución porcentual',()=>R2(F('vi','Valor inicial','80.000'),F('vf','Valor final','92.000'))+F('vn','Períodos entre ambos (opcional: meses o años)','')+OUT+
+  NOTE('Un aumento de 25% se deshace con una baja de 20%, no de 25%. La variación promedio compuesta es la tasa fija por período que lleva del valor inicial al final.'),
+()=>{const a=n('vi'),b=n('vf'),N=n('vn');if(!a)return show([['El valor inicial no puede ser 0','—']]);const r=b/a-1;
+  show([[r>=0?'Aumento':'Disminución',nf(Math.abs(r)*100,2)+'%','tot'],['Diferencia',(b-a>=0?'+':'−')+nf(Math.abs(b-a),2)],['El final es',nf(b/a*100,2)+'% del inicial'],
+    ['Para volver al valor inicial',b?(r>=0?'bajar ':'subir ')+nf(Math.abs(a/b-1)*100,2)+'%':'—'],N>0&&b/a>0?['Promedio compuesto por período',nf((Math.pow(b/a,1/N)-1)*100,3)+'%','tot']:null,
+    N>0?['Promedio simple por período',nf(r/N*100,3)+'%']:null,Math.abs(a)<=100&&Math.abs(b)<=100?['Si ambos son tasas (%)',nf(b-a,2)+' puntos porcentuales']:null])});
+const mcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b)[a,b]=[b,a%b];return a};
+function aFrac(x,maxD=10000){let h1=1,h0=0,k1=0,k0=1,b=x;for(let i=0;i<40;i++){const a=Math.floor(b);[h1,h0]=[a*h1+h0,h1];[k1,k0]=[a*k1+k0,k1];
+  if(k1>maxD){h1=h0;k1=k0;break}if(Math.abs(x-h1/k1)<1e-12||b===a)break;b=1/(b-a)}return [h1,k1]}
+function leeFrac(s){s=s.trim();let m;
+  if(m=s.match(/^(-?)(\d+)\s+(\d+)\s*\/\s*(\d+)$/))return [(+m[2]*+m[4]+ +m[3])*(m[1]?-1:1),+m[4]];
+  if(m=s.match(/^(-?[\d.,]+)\s*\/\s*([\d.,]+)$/))return [numv(m[1]),numv(m[2])];
+  if(m=s.match(/^(-?[\d.,]+)\s*%$/))return [numv(m[1]),100];
+  if(/^-?[\d.,]+$/.test(s))return [numv(s),1];return null}
+tool_('fraccion','com','Fracciones, decimales y porcentajes',()=>T('fr','Fracción, decimal o porcentaje','3/8','autocomplete="off"')+F('frm','Aplicar a un monto (opcional)','')+OUT+
+  '<details style="margin-top:12px"><summary class="flab">Equivalencias comunes</summary><table class="tbl">'+tabla(['Fracción','Decimal','Porcentaje'],
+  [[1,2],[1,3],[2,3],[1,4],[3,4],[1,5],[2,5],[1,6],[1,8],[3,8],[5,8],[1,10],[1,12],[1,16]].map(([a,b])=>[a+'/'+b,nf(a/b,4),nf(a/b*100,2)+'%']))+'</table></details>'+
+  NOTE('Acepta 3/8, 1 1/2 (número mixto), 0,375 o 37,5%. Los decimales periódicos se convierten a la fracción más cercana.'),
+()=>{const p=leeFrac(v('fr'));if(!p||!p[1])return show([['Escribe por ejemplo 3/8, 1 1/2, 0,375 o 37,5%','—']]);
+  const x=p[0]/p[1];let [a,b]=Number.isInteger(p[0])&&Number.isInteger(p[1])?[p[0],p[1]]:aFrac(Math.abs(x));if(x<0&&a>0)a=-a;
+  const g=mcd(a,b)||1;a/=g;b/=g;const e=Math.trunc(a/b),r=Math.abs(a%b),M=n('frm');
+  show([['Fracción simplificada',a+'/'+b,'tot'],Math.abs(a)>b&&r?['Número mixto',e+' '+r+'/'+b]:null,['Decimal',nf(x,8)],['Porcentaje',nf(x*100,6)+'%','tot'],
+    a>0&&a<b?['Equivale a',a+' de cada '+b+(a>1?' (1 de cada '+nf(b/a,2)+')':'')]:null,M?[nf(a)+'/'+b+' de '+nf(M),nf(M*x,4),'tot']:null])});
+tool_('regla3','com','Regla de tres',()=>R2(F('ra','Si A','3'),F('rb','corresponde a B','1.500'))+F('rc','¿Cuánto corresponde a C?','5')+OUT+
+  NOTE('Directa: a más cantidad, más resultado (precios, recetas, distancias). Inversa: a más cantidad, menos resultado (personas y días de trabajo, velocidad y tiempo).'),
+()=>{const a=n('ra'),b=n('rb'),c=n('rc');show([['Directa (C × B ÷ A)',a?nf(c*b/a,4):'—','tot'],['Inversa (A × B ÷ C)',c?nf(a*b/c,4):'—','tot'],['B por cada unidad de A',a?nf(b/a,6):'—']])});
+
+// Negocios
+tool_('recargo','neg','Aumento de precio (recargo)',()=>S('rgm','Tengo',[['pct','Costo y % de recargo'],['precio','Costo y precio de venta']],'pct')+
+  R2(F('rgc','Costo','10.000'),G('g_rgx',F('rgx','Recargo (%)','40')),G('g_rgp',F('rgp','Precio de venta','14.000')))+QK('rgx',[10,20,25,30,40,50,100],'%')+
+  S('rgi','Los montos son',[['neto','Netos (sin IVA)'],['bruto','Con IVA']],'neto')+OUT+'<table class="tbl" id="rgo" style="margin-top:12px"></table>'+
+  NOTE('Recargo (markup) = ganancia ÷ costo. No es lo mismo que el margen (ganancia ÷ precio): recargar 40% deja un margen de 28,6%.'),
+()=>{const pm=v('rgm')==='pct';vis('g_rgx',pm);vis('g_rgp',!pm);const c=n('rgc'),p=pm?c*(1+n('rgx')/100):n('rgp'),gan=p-c,neto=v('rgi')==='neto';
+  show([['Precio de venta'+(neto?' neto':' con IVA'),clp(p),'tot'],neto?['Precio con IVA (19%)',clp(p*1.19),'tot']:['Precio neto (sin IVA)',clp(p/1.19)],['Ganancia por unidad',clp(neto?gan:gan/1.19)+(neto?'':' neta')],
+    ['Recargo',c?nf(gan/c*100,2)+'%':'—'],['Margen equivalente',p?nf(gan/p*100,2)+'%':'—']]);
+  el('rgo').innerHTML=tabla(['Recargo','Precio','Margen'],[10,20,25,30,40,50,75,100].map(x=>[x+'%',clp(c*(1+x/100)),nf(x/(100+x)*100,1)+'%']))});
+tool_('margen','neg','Margen de ganancia',()=>S('mgm','Tengo',[['pct','Costo y margen deseado'],['precio','Costo y precio de venta'],['pv','Precio de venta y margen (busco el costo máximo)']],'pct')+
+  R2(G('g_mgc',F('mgc','Costo','10.000')),G('g_mgx',F('mgx','Margen (%)','30')),G('g_mgp',F('mgp','Precio de venta','14.000')))+
+  R2(F('mgf','Costos fijos del mes (opcional)','0'),F('mgu','Unidades al mes (opcional)','0'))+OUT+'<table class="tbl" id="mgo" style="margin-top:12px"></table>'+
+  NOTE('Margen = ganancia ÷ precio de venta. Para ganar 30% sobre la venta hay que recargar 42,9% al costo. Usa montos netos (sin IVA). El punto de equilibrio son las unidades que pagan los costos fijos (arriendo, sueldos, servicios).'),
+()=>{const m=v('mgm');vis('g_mgc',m!=='pv');vis('g_mgx',m!=='precio');vis('g_mgp',m!=='pct');const x=n('mgx')/100;
+  const c=m==='pv'?n('mgp')*(1-x):n('mgc'),p=m==='pct'?(x<1?c/(1-x):0):n('mgp'),g=p-c,Fj=n('mgf'),U=n('mgu');
+  if(!(p>0))return show([['Revisa los datos (el margen debe ser menor a 100%)','—']]);
+  show([['Precio de venta',clp(p),'tot'],['Costo',clp(c)+(m==='pv'?' (máximo)':'')],['Ganancia por unidad',clp(g),'tot'],['Margen',nf(g/p*100,2)+'%'],['Recargo sobre el costo',c?nf(g/c*100,2)+'%':'—'],['Precio con IVA',clp(p*1.19)],
+    Fj>0?['Punto de equilibrio',g>0?nf(Math.ceil(Fj/g),0)+' unidades · '+clp(Math.ceil(Fj/g)*p)+' en ventas':'sin ganancia por unidad','tot']:null,
+    U>0?['Ganancia del mes ('+nf(U,0)+' u.)',clp(U*g-Fj),'tot']:null]);
+  el('mgo').innerHTML=c>0?tabla(['Margen','Precio','Recargo'],[10,15,20,25,30,35,40,50,60].map(k=>[k+'%',clp(c/(1-k/100)),nf(k/(100-k)*100,1)+'%'])):''});
+tool_('comerciante','neg','Calculadora del comerciante (IVA)',()=>R2(F('cmc','Costo de compra por unidad','8.000'),S('cmi','El costo es',[['neto','Neto (sin IVA)'],['bruto','Con IVA']],'neto'))+
+  R2(S('cmt','Quiero ganar',[['margen','Margen sobre la venta'],['recargo','Recargo sobre el costo']],'margen'),F('cmx','Porcentaje (%)','30'))+
+  R2(F('cmq','Unidades','1'),F('cmk','Comisión tarjeta (%)','0'))+
+  R2(F('cmd','Descuento al cliente (%)','0'),S('cmr','Redondear precio al público',[[0,'No'],[10,'A $10'],[100,'A $100'],[990,'Terminar en 990']],10))+OUT+
+  NOTE('Precio al público = precio neto + 19% de IVA. El IVA de la venta (débito) menos el de la compra (crédito) es lo que pagas al SII en el F29. La comisión de tarjeta se cobra sobre el precio con IVA. La ganancia final ya descuenta IVA, descuento y comisión.'),
+()=>{const q=Math.max(n('cmq'),1),cn=v('cmi')==='bruto'?n('cmc')/1.19:n('cmc'),x=n('cmx')/100,k=n('cmk')/100,d=n('cmd')/100,R=+v('cmr');
+  const pn=v('cmt')==='margen'?(x<1?cn/(1-x):0):cn*(1+x);if(!(pn>0))return show([['Revisa los datos','—']]);
+  const rd=y=>R===990?Math.ceil((y+10)/1000)*1000-10:redo(y,R),pub=rd(pn*1.19),pv=pub*(1-d),vn=pv/1.19,deb=pv-vn,cre=cn*.19,com=pv*k,gan=vn-cn-com;
+  show([['Costo neto',clp(cn)],['IVA de la compra (crédito)',clp(cre)],['Precio neto de venta',clp(pub/1.19)],['Precio al público con IVA',clp(pub),'tot'],
+    d?['Precio con descuento',clp(pv),'tot']:null,['IVA de la venta (débito)',clp(deb)],['IVA a pagar al SII',clp(deb-cre)],k?['Comisión tarjeta',clp(com)]:null,
+    ['Ganancia por unidad',clp(gan),'tot'],['Margen real',vn?nf(gan/vn*100,2)+'%':'—'],['Recargo real',cn?nf(gan/cn*100,2)+'%':'—'],
+    k?['Precio al público para mantener la ganancia pese a la comisión',clp(rd(pn/(1-1.19*k)*1.19))]:null,
+    q>1?['Venta total ('+nf(q,0)+' u.)',clp(pv*q)]:null,q>1?['IVA a pagar total',clp((deb-cre)*q)]:null,q>1?['Ganancia total',clp(gan*q),'tot']:null])});
+
 // Otras
-tool_('pct','otras','Porcentajes',()=>R2(F('pa','A','5'),F('pb','B','100'))+OUT,()=>{const a=n('pa'),b=n('pb');
-  show([[`${nf(a)}% de ${nf(b)}`,nf(a*b/100,4)],[`${nf(a)} es el … % de ${nf(b)}`,b?nf(a/b*100,4)+'%':'—'],[`${nf(a)} es el ${nf(b)}% de …`,b?nf(a*100/b,4):'—'],
-    [`Variación de ${nf(a)} a ${nf(b)}`,a?nf((b/a-1)*100,4)+'%':'—'],[`${nf(b)} + ${nf(a)}%`,nf(b*(1+a/100),4)],[`${nf(b)} − ${nf(a)}%`,nf(b*(1-a/100),4)]])});
 tool_('imc','otras','Índice de masa corporal',()=>R2(F('ip','Peso (kg)','70'),F('ia','Altura (cm)','170'))+OUT+NOTE('Clasificación OMS para adultos. El IMC es un indicador poblacional: no distingue masa muscular ni distribución de grasa.'),
   ()=>{const h=n('ia')/100,i=h?n('ip')/h/h:0;
     const c=i<16?'Delgadez severa':i<17?'Delgadez moderada':i<18.5?'Delgadez leve':i<25?'Normal':i<30?'Sobrepeso':i<35?'Obesidad I':i<40?'Obesidad II':'Obesidad III';
@@ -1284,21 +1410,93 @@ tool_('consumo','fin','Crédito de consumo o automotriz',()=>R2(F('km','Monto qu
   let lo=0,hi=1;for(let k=0;k<100;k++){const r=(lo+hi)/2,pv=r?Q*(1-Math.pow(1+r,-N))/r:Q*N;pv>M?lo=r:hi=r}
   show([['Impuesto de timbres',clp(ite)],['Monto del crédito',clp(C)],['Cuota mensual',clp(Q),'tot'],['Costo total',clp(Q*N),'tot'],['Intereses y cargos',clp(Q*N-M)],
     ['CAE',nf(lo*1200,2)+'%','tot'],['Tasa anual compuesta',nf((Math.pow(1+i,12)-1)*100,2)+'%']])});
+let PRE=[];
+tool_('prestamo','fin','Pago de préstamo (tabla de pagos)',()=>R2(F('plm','Monto del préstamo','3.000.000'),F('pln','Plazo (meses)','24'))+
+  R2(F('plt','Tasa (%)','18'),S('plk','La tasa es',[['anual','Anual'],['mensual','Mensual']],'anual'))+
+  R2(S('pls','Sistema',[['fr','Cuota fija (francés)'],['al','Capital fijo (alemán)']],'fr'),F('plx','Abono extra mensual','0'))+F('plg','Seguros o cargos mensuales','0')+OUT+
+  '<p class="flab" style="margin-top:14px">Tabla de pagos <button class="chip" onclick="preCSV()">Descargar CSV</button></p><table class="tbl" id="pla"></table>'+
+  NOTE('Con tasa anual se usa la mensual = anual ÷ 12, como los bancos. Cuota fija: siempre igual y al principio pagas más interés. Capital fijo: la cuota baja cada mes. El abono extra va al capital y acorta el plazo. Para créditos de consumo con impuesto de timbres y CAE usa «Crédito de consumo o automotriz».'),
+()=>{const M=n('plm'),N=Math.round(n('pln')),i=v('plk')==='anual'?n('plt')/1200:n('plt')/100,x=n('plx'),g=n('plg'),fr=v('pls')==='fr';
+  if(!(M>0&&N>0))return show([['Revisa los datos','—']]);
+  const q=i?M*i/(1-Math.pow(1+i,-N)):M/N;
+  const corre=ex=>{let s=M,tI=0,k=0;const f=[];while(s>0.5&&k<N){k++;const it=s*i,am=Math.min((fr?q-it:M/N)+ex,s);s-=am;tI+=it;f.push([k,am+it+g,it,am,Math.max(s,0)])}return {tI,k,f}};
+  const a=corre(x),b=x?corre(0):a;PRE=a.f;
+  show([[fr?'Cuota mensual':'Primera cuota',clp(b.f[0][1]),'tot'],fr?null:['Última cuota',clp(b.f[b.f.length-1][1])],['Total intereses',clp(b.tI)],['Total pagado',clp(M+b.tI+g*b.k),'tot'],
+    ['Tasa anual efectiva',nf((Math.pow(1+i,12)-1)*100,2)+'%'],x?['Con abono de '+clp(x)+' terminas en',a.k+' meses ('+(b.k-a.k)+' menos)','tot']:null,x?['Ahorro en intereses',clp(b.tI-a.tI),'tot']:null]);
+  let fil=a.f;if(fil.length>120){fil=[];a.f.forEach(r=>{const y=Math.ceil(r[0]/12);if(!fil[y-1])fil[y-1]=['Año '+y,0,0,0,0];const t=fil[y-1];t[1]+=r[1];t[2]+=r[2];t[3]+=r[3];t[4]=r[4]})}
+  el('pla').innerHTML=tabla([a.f.length>120?'Año':'Mes','Cuota','Interés','Capital','Saldo'],fil.map(r=>[r[0],...r.slice(1).map(clp)]))});
+function preCSV(){bajar('prestamo.csv',[['Mes','Cuota','Interés','Capital','Saldo'],...PRE.map(r=>[r[0],...r.slice(1).map(Math.round)])])}
 async function ipc12(){const u=await H(ineUltimo());if(!u)return null;const [y,m]=u.split('-').map(Number);return await H(ipcVar(ym(y-1,m-1),u))}
+let AHO=[];
 tool_('ahorro','fin','Ahorro e interés compuesto',()=>R2(F('ai0','Monto inicial','1.000.000'),F('aim','Aporte mensual','100.000'))+
-  R2(F('ait','Rentabilidad anual (%)','6'),F('ain','Años','10'))+F('aip','Inflación anual esperada (%) · vacío = IPC últimos 12 meses','')+OUT+
-  NOTE('Capitalización mensual con la tasa anual efectiva. Sin inflación escrita se usa la variación del IPC de los últimos 12 meses (INE). El valor real queda en pesos de hoy.'),
+  R2(F('ait','Rentabilidad anual (%)','6'),F('ain','Años','10'))+R2(F('aia','Alza anual del aporte (%)','0'),F('aig','Meta (opcional)',''))+
+  F('aip','Inflación anual esperada (%) · vacío = IPC últimos 12 meses','')+OUT+
+  '<p class="flab" style="margin-top:14px">Por año <button class="chip" onclick="ahoCSV()">Descargar CSV</button></p><table class="tbl" id="aa"></table>'+
+  NOTE('Capitalización mensual con la tasa anual efectiva. El aporte puede subir cada año (por ejemplo, con el sueldo). Sin inflación escrita se usa la variación del IPC de los últimos 12 meses (INE). El valor real queda en pesos de hoy. La meta se compara en pesos nominales.'),
 async()=>{const inf=v('aip').trim()===''?((await ipc12())??3):n('aip');
-  const r=Math.pow(1+n('ait')/100,1/12)-1,N=Math.round(n('ain')*12);let s=n('ai0');for(let k=0;k<N;k++)s=s*(1+r)+n('aim');
-  const ap=n('ai0')+n('aim')*N;
+  const r=Math.pow(1+n('ait')/100,1/12)-1,N=Math.round(n('ain')*12),g=n('aia')/100,M=n('aig');
+  const sim=(a0,ap,N,cb)=>{let s=a0,a=ap,t=a0;for(let k=1;k<=N;k++){s=s*(1+r)+a;t+=a;if(cb)cb(k,s,t);if(k%12===0)a*=1+g}return [s,t]};
+  AHO=[];const [s,ap]=sim(n('ai0'),n('aim'),N,(k,s,t)=>{if(k%12===0||k===N)AHO.push([Math.ceil(k/12),t,s-t,s,s/Math.pow(1+inf/100,k/12)])});
+  let meta=null,tiempo=null;
+  if(M>0){const s1=sim(0,1,N)[0];meta=s1?Math.max((M-sim(n('ai0'),0,N)[0])/s1,0):null;
+    let x=n('ai0'),a=n('aim');for(let k=1;k<=1200;k++){x=x*(1+r)+a;if(k%12===0)a*=1+g;if(x>=M){tiempo=k;break}}}
   show([['Monto final',clp(s),'tot'],['Total aportado',clp(ap)],['Intereses ganados',clp(s-ap)],['Inflación usada',nf(inf,1)+'% anual'],
-    ['Valor en pesos de hoy',clp(s/Math.pow(1+inf/100,N/12)),'tot'],['Rentabilidad real anual',nf(((1+n('ait')/100)/(1+inf/100)-1)*100,2)+'%']])});
+    ['Valor en pesos de hoy',clp(s/Math.pow(1+inf/100,N/12)),'tot'],['Rentabilidad real anual',nf(((1+n('ait')/100)/(1+inf/100)-1)*100,2)+'%'],
+    M>0&&meta!=null?['Aporte mensual para llegar a '+clp(M)+' en '+nf(N/12,1)+' años',clp(meta),'tot']:null,
+    M>0?['Con tu aporte llegas a la meta en',tiempo?Math.floor(tiempo/12)+' años y '+tiempo%12+' meses':'más de 100 años']:null]);
+  el('aa').innerHTML=tabla(['Año','Aportado','Intereses','Saldo','En pesos de hoy'],AHO.map(f=>[f[0],...f.slice(1).map(clp)]))});
+function ahoCSV(){bajar('ahorro.csv',[['Año','Aportado','Intereses','Saldo','Saldo en pesos de hoy'],...AHO.map(f=>[f[0],...f.slice(1).map(Math.round)])])}
 tool_('dap','fin','Depósito a plazo',()=>R2(F('pm2','Monto','1.000.000'),F('pd','Días','30'))+R2(F('pt2','Tasa base 30 días (%)','0,40'),S('pr','Veces que se renueva',[[1,'Una'],[3,'3'],[6,'6'],[12,'12']],1))+OUT+
   NOTE('Los bancos informan la tasa por 30 días: interés = monto × tasa × días ÷ 30. Al renovar se reinvierte capital más intereses. La rentabilidad real compara con el IPC de los últimos 12 meses (INE).'),
 async()=>{const t=n('pt2')/100,d=n('pd')||30,k=+v('pr');let s=n('pm2');for(let j=0;j<k;j++)s+=s*t*d/30;
   const an=(Math.pow(1+t*d/30,365/d)-1)*100,inf=await ipc12();
   show([['Intereses',clp(s-n('pm2'))],['Monto final ('+nf(d*k,0)+' días)',clp(s),'tot'],['Tasa anual equivalente',nf(an,2)+'%'],
     inf!=null?['Rentabilidad real anual (IPC '+nf(inf,1)+'%)',nf(((1+an/100)/(1+inf/100)-1)*100,2)+'%']:null])});
+
+let CPA=[];
+tool_('compuesto','fin','Interés compuesto',()=>R2(F('cpc','Capital inicial','1.000.000'),F('cpt','Tasa anual nominal (%)','8'))+
+  R2(F('cpn','Años','10'),S('cpf','Capitalización',[[1,'Anual'],[2,'Semestral'],[4,'Trimestral'],[12,'Mensual'],[52,'Semanal'],[365,'Diaria'],[0,'Continua']],12))+
+  F('cpm','Meta (opcional): monto que quieres alcanzar','')+OUT+
+  '<p class="flab" style="margin-top:14px">Por año <button class="chip" onclick="cpCSV()">Descargar CSV</button></p><table class="tbl" id="cpa"></table>'+
+  NOTE('Monto = capital × (1 + tasa ÷ m)^(m × años), con m las capitalizaciones por año; continua: capital × e^(tasa × años). La tasa efectiva anual sirve para comparar ofertas con distinta capitalización. Con aportes mensuales usa «Ahorro e interés compuesto».'),
+()=>{const C=n('cpc'),j=n('cpt')/100,Y=Math.min(n('cpn'),200),m=+v('cpf'),fac=t=>m?Math.pow(1+j/m,m*t):Math.exp(j*t),ef=fac(1)-1,S=C*fac(Y),M=n('cpm'),si=C*(1+j*Y);
+  CPA=[];for(let y=1;y<=Math.ceil(Y);y++){const a=C*fac(Math.min(y,Y)),b=C*fac(y-1);CPA.push([y,b,a-b,a,a-C])}
+  show([['Monto final',clp(S),'tot'],['Intereses ganados',clp(S-C)],['Tasa efectiva anual',nf(ef*100,3)+'%'],['Con interés simple serían',clp(si)],['Ganancia extra por capitalizar',clp(S-si)],
+    M>C&&ef>0?['Años para llegar a la meta',nf(Math.log(M/C)/Math.log(1+ef),1),'tot']:null,M>0&&C>0&&Y>0?['Tasa efectiva anual necesaria para la meta en '+nf(Y,1)+' años',nf((Math.pow(M/C,1/Y)-1)*100,2)+'%']:null,
+    M>0&&Y>0?['Capital que necesitas hoy para la meta',clp(M/fac(Y))]:null]);
+  el('cpa').innerHTML=tabla(['Año','Inicio','Interés','Final'],CPA.map(f=>[f[0],clp(f[1]),clp(f[2]),clp(f[3])]))});
+function cpCSV(){bajar('interes-compuesto.csv',[['Año','Inicio','Interés','Final','Interés acumulado'],...CPA.map(f=>[f[0],...f.slice(1).map(Math.round)])])}
+tool_('crecim','fin','Crecimiento acumulado',()=>F('caV','Valor inicial','100')+
+  TA('caL','Variación de cada período en % (separadas por espacio, ; o una por línea)','','5\n-3\n2,5\n4')+R2(F('caT','Si no hay lista: tasa fija (%)','3'),F('caN','Número de períodos','12'))+
+  OUT+'<table class="tbl" id="cao" style="margin-top:12px"></table>'+
+  NOTE('Las variaciones se multiplican: +10% y luego −10% deja −1%, no 0%. El promedio geométrico es la tasa fija que da el mismo resultado; el promedio simple lo exagera. Sirve para ventas, IPC mensual, sueldos o inversiones.'),
+()=>{let L=v('caL').split(/[\s;]+/).filter(Boolean).map(numv);if(!L.length)L=Array(Math.min(Math.max(Math.round(n('caN')),0),1200)).fill(n('caT'));
+  const V0=n('caV')||100;let x=V0;const fil=L.map((t,i)=>{x*=1+t/100;return [i+1,nf(t,2)+'%',nf(x,2),nf((x/V0-1)*100,2)+'%']});
+  const k=x/V0,geo=L.length&&k>0?Math.pow(k,1/L.length)-1:NaN,ar=L.reduce((a,b)=>a+b,0)/(L.length||1);
+  show([['Crecimiento acumulado',nf((k-1)*100,3)+'%','tot'],['Valor final',nf(x,2),'tot'],['Períodos',nf(L.length,0)],['Promedio geométrico por período',isFinite(geo)?nf(geo*100,3)+'%':'—'],
+    ['Promedio simple por período',nf(ar,3)+'%'],isFinite(geo)?['Equivalente anual si los períodos son meses',nf((Math.pow(1+geo,12)-1)*100,2)+'%']:null]);
+  el('cao').innerHTML=L.length<=120?tabla(['Período','Variación','Valor','Acumulado'],fil):''});
+tool_('inflacion','fin','Inflación y poder de compra',()=>S('ifm','Quiero',[['fut','Proyectar cuánto valdrá mi dinero'],['dos','Comparar dos precios en el tiempo']],'fut')+
+  G('g_iff',R2(F('ifa','Monto de hoy','100.000'),F('ify','Años','5'))+F('ifr','Inflación anual (%) · vacío = IPC últimos 12 meses',''))+
+  G('g_ifd',R2(F('ifp0','Precio antes','1.000'),F('ifp1','Precio ahora','1.500'))+F('ifn','Años entre ambos','5'))+OUT+'<table class="tbl" id="ifo" style="margin-top:12px"></table>'+
+  NOTE('Precio futuro = monto × (1 + inflación)^años. Poder de compra = monto ÷ (1 + inflación)^años. Para reajustar montos con el IPC real de meses pasados usa «Reajuste por IPC» en UTM · UF · IPC.'),
+async()=>{const fu=v('ifm')==='fut';vis('g_iff',fu);vis('g_ifd',!fu);
+  if(!fu){const a=n('ifp0'),b=n('ifp1'),N=n('ifn');el('ifo').innerHTML='';
+    return show([['Alza total',a?nf((b/a-1)*100,2)+'%':'—','tot'],['Inflación anual promedio',a&&N>0&&b/a>0?nf((Math.pow(b/a,1/N)-1)*100,2)+'%':'—','tot'],
+      ['Lo que antes costaba $1.000 hoy cuesta',a?clp(1000*b/a):'—'],['Tu dinero compra hoy',a&&b?nf(a/b*100,1)+'% de lo que compraba':'—']])}
+  const inf=v('ifr').trim()===''?((await ipc12())??3):n('ifr'),A=n('ifa'),Y=n('ify'),f=Math.pow(1+inf/100,Y);
+  show([['Inflación usada',nf(inf,2)+'% anual'],['Lo que hoy cuesta '+clp(A)+' costará',clp(A*f),'tot'],[clp(A)+' alcanzarán para lo que hoy cuesta',clp(A/f),'tot'],
+    ['Pérdida de poder de compra',nf((1-1/f)*100,2)+'%'],['Rentabilidad mínima para no perder',nf(inf,2)+'% anual'],['Años para que los precios se dupliquen',inf>0?nf(Math.log(2)/Math.log(1+inf/100),1):'—']]);
+  const fil=[];for(let y=1;y<=Math.min(Math.ceil(Y),50);y++){const g=Math.pow(1+inf/100,y);fil.push([y,clp(A*g),clp(A/g)])}
+  el('ifo').innerHTML=tabla(['Año','Precio futuro','Poder de compra'],fil)});
+tool_('duplica','fin','Tiempo de duplicación',()=>R2(F('dut','Tasa por período (%)','6'),F('dux','Multiplicar por','2'))+F('duy','¿En cuántos períodos quieres lograrlo? (opcional)','')+OUT+
+  '<table class="tbl" id="duo" style="margin-top:12px"></table>'+
+  NOTE('Exacto: ln(factor) ÷ ln(1 + tasa). La regla del 72 (72 ÷ tasa) es un atajo mental bueno entre 6% y 10%; la del 70 funciona mejor con tasas bajas. Sirve también para precios: con 4% de inflación se duplican en unos 18 años.'),
+()=>{const t=n('dut')/100,X=n('dux')>1?n('dux'):2,Y=n('duy'),per=t>0?Math.log(X)/Math.log(1+t):NaN;
+  show([['Períodos para '+(X===2?'duplicar':'multiplicar por '+nf(X,2)),isFinite(per)?nf(per,2):'—','tot'],X===2&&t>0?['Regla del 72',nf(72/(t*100),2)]:null,X===2&&t>0?['Regla del 70',nf(70/(t*100),2)]:null,
+    t>0?['Con capitalización continua',nf(Math.log(X)/t,2)]:null,isFinite(per)?['En años y meses (si son años)',Math.floor(per)+' años y '+Math.round((per%1)*12)+' meses']:null,
+    Y>0?['Tasa necesaria para ×'+nf(X,2)+' en '+nf(Y,2)+' períodos',nf((Math.pow(X,1/Y)-1)*100,3)+'%','tot']:null]);
+  el('duo').innerHTML=t>0?tabla(['Multiplicar','Períodos'],[2,3,4,5,10].map(f=>['×'+f,nf(Math.log(f)/Math.log(1+t),2)])):''});
 
 // Operación Renta
 tool_('renta','imp','Operación Renta (global complementario)',()=>{const y=new Date().getFullYear();
